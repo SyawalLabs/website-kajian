@@ -31,65 +31,293 @@ if (isset($_GET['reset'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola User - Admin</title>
+    <title>Kelola User - Admin MAKN ENDE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
+    <!-- Navbar (sama persis dengan dashboard) -->
     <nav class="navbar">
         <div class="container">
-            <h1>Jadwal Kajian - Admin</h1>
-            <ul>
-                <li><a href="dashboard.php">Dashboard</a></li>
-                <li><a href="kelola_kajian.php">Kelola Kajian</a></li>
-                <li><a href="kelola_user.php">Kelola User</a></li>
-                <li><a href="../logout.php">Logout</a></li>
-            </ul>
+            <div class="navbar-brand">
+                <div class="navbar-logo">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <div>
+                    <h1>MAKN ENDE <span>Panel Admin</span></h1>
+                </div>
+            </div>
+            <div class="navbar-menu">
+                <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="kelola_kajian.php"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
+                <a href="kelola_user.php" class="active"><i class="fas fa-users-cog"></i> Kelola User</a>
+                <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
         </div>
     </nav>
 
     <div class="container">
-        <h2>Daftar User</h2>
+        <!-- Breadcrumb -->
+        <div class="breadcrumb">
+            <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <span class="separator"><i class="fas fa-chevron-right"></i></span>
+            <a href="kelola_user.php"><i class="fas fa-users-cog"></i> Kelola User</a>
+            <span class="separator"><i class="fas fa-chevron-right"></i></span>
+            <span>Daftar User</span>
+        </div>
+
+        <!-- Welcome Card -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: var(--border-radius); margin-bottom: 40px; color: white;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 50%;">
+                    <i class="fas fa-users-cog" style="font-size: 30px;"></i>
+                </div>
+                <div>
+                    <h2 style="font-size: 1.8rem; margin-bottom: 5px; font-family: 'Amiri', serif;">
+                        <i class="fas fa-hand-sparkles"></i> 
+                        Kelola User
+                    </h2>
+                    <p style="opacity: 0.9;">Mengelola data pembina dan admin pada sistem jadwal kajian MAKN ENDE.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header dengan statistik user -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <h2 class="dashboard-title" style="margin-bottom: 0;">
+                <i class="fas fa-users"></i> 
+                Daftar User
+            </h2>
+            
+            <?php
+            $total_admin = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE role='admin'"))['total'];
+            $total_pembina = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE role='pembina'"))['total'];
+            ?>
+            <div style="display: flex; gap: 15px;">
+                <div style="background: #f8f9fa; padding: 10px 20px; border-radius: 50px; font-size: 14px;">
+                    <i class="fas fa-user-cog" style="color: #667eea;"></i> 
+                    Admin: <strong><?php echo $total_admin; ?></strong>
+                </div>
+                <div style="background: #f8f9fa; padding: 10px 20px; border-radius: 50px; font-size: 14px;">
+                    <i class="fas fa-user-tie" style="color: #28a745;"></i> 
+                    Pembina: <strong><?php echo $total_pembina; ?></strong>
+                </div>
+            </div>
+        </div>
         
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>No</th>
-                    <th>Nama Lengkap</th>
-                    <th>Username</th>
-                    <th>Role</th>
-                    <th>Tanggal Daftar</th>
-                    <th>Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                $query = "SELECT * FROM users ORDER BY created_at DESC";
-                $result = mysqli_query($conn, $query);
-                $no = 1;
-                
-                while ($row = mysqli_fetch_assoc($result)) {
-                    echo "<tr>";
-                    echo "<td>" . $no++ . "</td>";
-                    echo "<td>" . $row['nama_lengkap'] . "</td>";
-                    echo "<td>" . $row['username'] . "</td>";
-                    echo "<td>" . ucfirst($row['role']) . "</td>";
-                    echo "<td>" . date('d/m/Y', strtotime($row['created_at'])) . "</td>";
-                    echo "<td>";
+        <!-- Tabel User -->
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th><i class="fas fa-user"></i> Nama Lengkap</th>
+                        <th><i class="fas fa-user-circle"></i> Username</th>
+                        <th><i class="fas fa-tag"></i> Role</th>
+                        <th><i class="fas fa-calendar-alt"></i> Tanggal Daftar</th>
+                        <th><i class="fas fa-cog"></i> Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    $query = "SELECT * FROM users ORDER BY 
+                              CASE role 
+                                WHEN 'admin' THEN 1 
+                                WHEN 'pembina' THEN 2 
+                              END, 
+                              created_at DESC";
+                    $result = mysqli_query($conn, $query);
+                    $no = 1;
                     
-                    if ($row['role'] != 'admin') {
-                        echo "<a href='?reset=" . $row['id'] . "' class='btn-reset' onclick='return confirm(\"Reset password menjadi password123?\")'>Reset Password</a>";
-                        echo " | ";
-                        echo "<a href='?hapus=" . $row['id'] . "' class='btn-hapus' onclick='return confirm(\"Yakin ingin menghapus user ini?\")'>Hapus</a>";
-                    } else {
-                        echo "-";
+                    while ($row = mysqli_fetch_assoc($result)) {
+                        $role_class = ($row['role'] == 'admin') ? 'role-admin' : 'role-pembina';
+                        $role_icon = ($row['role'] == 'admin') ? 'fa-user-cog' : 'fa-user-tie';
+                        
+                        echo "<tr>";
+                        echo "<td>" . $no++ . "</td>";
+                        echo "<td><strong>" . $row['nama_lengkap'] . "</strong></td>";
+                        echo "<td>" . $row['username'] . "</td>";
+                        echo "<td><span class='role-badge " . $role_class . "'><i class='fas " . $role_icon . "'></i> " . ucfirst($row['role']) . "</span></td>";
+                        echo "<td>" . date('d/m/Y H:i', strtotime($row['created_at'])) . " WIB</td>";
+                        echo "<td class='action-buttons'>";
+                        
+                        if ($row['role'] != 'admin') {   
+                            // Tombol Hapus
+                            echo "<a href='?hapus=" . $row['id'] . "' class='btn-hapus' onclick='return confirm(\"Yakin ingin menghapus user " . $row['nama_lengkap'] . "?\")' title='Hapus User'>";
+                            echo "<i class='fas fa-trash'></i> Hapus";
+                            echo "</a>";
+                        } else {
+                            echo "<span class='admin-badge'><i class='fas fa-shield-alt'></i> Admin Utama</span>";
+                        }
+                        
+                        echo "</td>";
+                        echo "</tr>";
                     }
                     
-                    echo "</td>";
-                    echo "</tr>";
-                }
-                ?>
-            </tbody>
-        </table>
+                    if (mysqli_num_rows($result) == 0) {
+                        echo "<tr><td colspan='6' style='text-align: center; padding: 60px;'>";
+                        echo "<i class='fas fa-users-slash' style='font-size: 40px; color: #ccc; margin-bottom: 15px; display: block;'></i>";
+                        echo "<h3 style='color: #999;'>Belum Ada User</h3>";
+                        echo "<p style='color: #999;'>Silakan tambah user baru melalui halaman registrasi.</p>";
+                        echo "</td></tr>";
+                    }
+                    ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Informasi Reset Password -->
+        <div style="margin-top: 30px; background: #e8f4fd; padding: 20px; border-radius: var(--border-radius); border-left: 5px solid #17a2b8;">
+            <div style="display: flex; align-items: start; gap: 15px;">
+                <i class="fas fa-info-circle" style="font-size: 24px; color: #17a2b8;"></i>
+                <div>
+                    <strong style="font-size: 16px;">Informasi Reset Password:</strong>
+                    <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; color: #555;">
+                        <li>Reset password akan mengubah password user menjadi <strong>password123</strong></li>
+                        <li>User dapat login dengan password baru dan menggantinya nanti di profil masing-masing</li>
+                        <li>Admin utama (dengan role admin) tidak dapat dihapus atau direset</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div style="margin-top: 40px; display: flex; gap: 20px; flex-wrap: wrap;">
+            <a href="dashboard.php" style="background: white; padding: 15px 25px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: inline-flex; align-items: center; gap: 10px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
+                <i class="fas fa-arrow-left" style="color: #667eea;"></i>
+                <span>Kembali ke Dashboard</span>
+            </a>
+            
+            <a href="kelola_kajian.php" style="background: white; padding: 15px 25px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: inline-flex; align-items: center; gap: 10px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
+                <i class="fas fa-calendar-alt" style="color: #28a745;"></i>
+                <span>Kelola Kajian</span>
+            </a>
+            
+            <a href="../index.php" target="_blank" style="background: white; padding: 15px 25px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: inline-flex; align-items: center; gap: 10px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
+                <i class="fas fa-globe" style="color: #17a2b8;"></i>
+                <span>Lihat Website</span>
+            </a>
+        </div>
     </div>
+
+    <!-- CSS untuk memperbaiki tampilan tombol -->
+    <style>
+        .role-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 50px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        
+        .role-admin {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .role-pembina {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        /* Perbaikan tampilan kolom aksi */
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-reset, .btn-hapus {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        
+        .btn-reset {
+            background: #e8f4fd;
+            color: #17a2b8;
+            border-color: #b8e2f2;
+        }
+        
+        .btn-reset:hover {
+            background: #17a2b8;
+            color: white;
+            border-color: #17a2b8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(23, 162, 184, 0.2);
+        }
+        
+        .btn-hapus {
+            background: rgb(76, 25, 25);
+            color: #dc3545;
+            border-color: rgb(128, 42, 42);
+        }
+        
+        .btn-hapus:hover {
+            background: #dc3545;
+            color: white;
+            border-color: #dc3545;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+        }
+        
+        .btn-reset i, .btn-hapus i {
+            font-size: 12px;
+        }
+        
+        .admin-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #f0f0f0;
+            color: #666;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid #ddd;
+        }
+        
+        /* Membuat tampilan tabel lebih rapi */
+        .table td {
+            vertical-align: middle;
+            padding: 12px 15px;
+        }
+        
+        .table td.action-buttons {
+            min-width: 180px;
+        }
+        
+        /* Hapus style yang tidak diperlukan */
+        .btn-reset, .btn-hapus {
+            text-decoration: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-reset {
+            color: #17a2b8;
+        }
+        
+        .btn-reset:hover {
+            background: #e8f4fd;
+        }
+        
+        .btn-hapus {
+            color: #dc3545;
+        }
+        
+        .btn-hapus:hover {
+            background: #fee;
+        }
+    </style>
 </body>
 </html>

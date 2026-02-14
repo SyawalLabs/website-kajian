@@ -164,39 +164,6 @@ $kajian_bulan_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as t
                 </table>
             </div>
         </div>
-
-        <!-- Quick Actions -->
-        <div style="margin-top: 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-            <a href="kelola_kajian.php" style="background: white; padding: 20px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: flex; align-items: center; gap: 15px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
-                <div style="background: var(--gradient-1); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                    <i class="fas fa-plus"></i>
-                </div>
-                <div>
-                    <strong>Tambah Kajian</strong>
-                    <small style="display: block; color: #666;">Buat jadwal baru</small>
-                </div>
-            </a>
-            
-            <a href="kelola_user.php" style="background: white; padding: 20px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: flex; align-items: center; gap: 15px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
-                <div style="background: var(--accent-color); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                    <i class="fas fa-user-plus"></i>
-                </div>
-                <div>
-                    <strong>Kelola User</strong>
-                    <small style="display: block; color: #666;">Tambah/Edit Pembina</small>
-                </div>
-            </a>
-            
-            <a href="../index.php" target="_blank" style="background: white; padding: 20px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: flex; align-items: center; gap: 15px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
-                <div style="background: #17a2b8; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                    <i class="fas fa-globe"></i>
-                </div>
-                <div>
-                    <strong>Lihat Website</strong>
-                    <small style="display: block; color: #666;">Halaman publik</small>
-                </div>
-            </a>
-        </div>
     </div>
 </body>
 </html>
