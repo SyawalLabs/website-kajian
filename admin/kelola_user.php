@@ -104,7 +104,66 @@ if (isset($_GET['reset'])) {
                 </div>
             </div>
         </div>
-        
+        <!-- Tombol Tambah User -->
+<div style="margin-bottom: 20px;">
+    <button onclick="openTambahModal()" class="btn-tambah">
+        <i class="fas fa-plus-circle"></i> Tambah Pembina Baru
+    </button>
+</div>
+
+<!-- Modal Tambah User -->
+<div id="tambahUserModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-plus"></i> Tambah Pembina Baru</h3>
+            <span class="close" onclick="closeTambahModal()">&times;</span>
+        </div>
+        <form method="POST" action="proses_tambah_user.php" onsubmit="return validateForm()">
+            <div class="form-group">
+                <label><i class="fas fa-user"></i> Nama Lengkap <span class="required">*</span></label>
+                <input type="text" name="nama_lengkap" id="nama_lengkap" class="form-control" 
+                       placeholder="Masukkan nama lengkap" required>
+            </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-user-circle"></i> Username <span class="required">*</span></label>
+                <input type="text" name="username" id="username" class="form-control" 
+                       placeholder="Masukkan username" required>
+                <small class="form-text text-muted">Username minimal 3 karakter, hanya huruf dan angka</small>
+            </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-lock"></i> Password <span class="required">*</span></label>
+                <div style="position: relative;">
+                    <input type="password" name="password" id="password" class="form-control" 
+                           placeholder="Masukkan password" required>
+                    <i class="fas fa-eye toggle-password" onclick="togglePassword('password')" 
+                       style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;"></i>
+                </div>
+                <small class="form-text text-muted">Password minimal 6 karakter</small>
+            </div>
+            
+            <div class="form-group">
+                <label><i class="fas fa-lock"></i> Konfirmasi Password <span class="required">*</span></label>
+                <div style="position: relative;">
+                    <input type="password" name="konfirmasi_password" id="konfirmasi_password" class="form-control" 
+                           placeholder="Ulangi password" required>
+                    <i class="fas fa-eye toggle-password" onclick="togglePassword('konfirmasi_password')" 
+                       style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;"></i>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" onclick="closeTambahModal()" class="btn-batal">
+                    <i class="fas fa-times"></i> Batal
+                </button>
+                <button type="submit" name="simpan" class="btn-simpan">
+                    <i class="fas fa-save"></i> Simpan Pembina
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
         <!-- Tabel User -->
         <div class="table-container">
             <table class="table">
@@ -285,6 +344,338 @@ if (isset($_GET['reset'])) {
         .btn-hapus:hover {
             background: #fee;
         }
+        /* Style untuk tombol tambah */
+.btn-tambah {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.btn-tambah:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+    background: linear-gradient(135deg, #20c997 0%, #28a745 100%);
+}
+
+/* Style Modal */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    overflow-y: auto;
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: 30px auto;
+    padding: 0;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 15px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px 25px;
+    border-radius: 15px 15px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    font-family: 'Amiri', serif;
+}
+
+.close {
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.close:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+}
+
+/* Style Form */
+.form-group {
+    padding: 15px 25px;
+    margin: 0;
+    border-bottom: 1px solid #eee;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.form-group label i {
+    margin-right: 5px;
+    color: #667eea;
+}
+
+.required {
+    color: #dc3545;
+    margin-left: 3px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e1e1e1;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-text {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 5px;
+    display: block;
+}
+
+/* Toggle Password */
+.toggle-password {
+    color: #6c757d;
+    transition: all 0.3s ease;
+}
+
+.toggle-password:hover {
+    color: #667eea;
+}
+
+/* Modal Footer */
+.modal-footer {
+    padding: 20px 25px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background: #f8f9fa;
+    border-radius: 0 0 15px 15px;
+}
+
+.btn-batal, .btn-simpan {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.3s ease;
+}
+
+.btn-batal {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-batal:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+}
+
+.btn-simpan {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-simpan:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+/* Alert Messages */
+.alert {
+    padding: 15px 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.3s ease;
+}
+
+.alert-success {
+    background: #d4edda;
+    color: #155724;
+    border-left: 4px solid #28a745;
+}
+
+.alert-error {
+    background: #f8d7da;
+    color: #721c24;
+    border-left: 4px solid #dc3545;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
     </style>
+    <script>
+// Modal functions
+function openTambahModal() {
+    document.getElementById('tambahUserModal').style.display = 'block';
+    document.body.style.overflow = 'hidden'; // Mencegah scroll
+}
+
+function closeTambahModal() {
+    document.getElementById('tambahUserModal').style.display = 'none';
+    document.body.style.overflow = 'auto'; // Mengembalikan scroll
+}
+
+// Toggle password visibility
+function togglePassword(fieldId) {
+    var field = document.getElementById(fieldId);
+    var icon = event.target;
+    
+    if (field.type === "password") {
+        field.type = "text";
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        field.type = "password";
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+// Validasi form sebelum submit
+function validateForm() {
+    var nama = document.getElementById('nama_lengkap').value.trim();
+    var username = document.getElementById('username').value.trim();
+    var password = document.getElementById('password').value;
+    var konfirmasi = document.getElementById('konfirmasi_password').value;
+    var email = document.getElementById('email').value;
+    
+    // Validasi nama
+    if (nama.length < 3) {
+        alert('Nama lengkap minimal 3 karakter');
+        return false;
+    }
+    
+    // Validasi username
+    var usernameRegex = /^[a-zA-Z0-9]{3,20}$/;
+    if (!usernameRegex.test(username)) {
+        alert('Username hanya boleh huruf dan angka, minimal 3 karakter');
+        return false;
+    }
+    
+    // Validasi password
+    if (password.length < 6) {
+        alert('Password minimal 6 karakter');
+        return false;
+    }
+    
+    if (password !== konfirmasi) {
+        alert('Password dan konfirmasi password tidak cocok');
+        return false;
+    }
+    
+    // Validasi email jika diisi
+    if (email) {
+        var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            alert('Format email tidak valid');
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// Tutup modal jika klik di luar modal
+window.onclick = function(event) {
+    var modal = document.getElementById('tambahUserModal');
+    if (event.target == modal) {
+        closeTambahModal();
+    }
+}
+
+// Tampilkan alert jika ada status dari URL
+<?php if (isset($_GET['status'])): ?>
+    <?php if ($_GET['status'] == 'success'): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            var alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success';
+            alertDiv.innerHTML = '<i class="fas fa-check-circle"></i> User baru berhasil ditambahkan!';
+            
+            var container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            setTimeout(function() {
+                alertDiv.style.opacity = '0';
+                setTimeout(function() {
+                    alertDiv.remove();
+                }, 300);
+            }, 5000);
+        });
+    <?php endif; ?>
+    
+    <?php if ($_GET['status'] == 'error'): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            var alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-error';
+            alertDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Gagal menambahkan user. Silakan coba lagi.';
+            
+            var container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+        });
+    <?php endif; ?>
+<?php endif; ?>
+</script>
 </body>
 </html>
