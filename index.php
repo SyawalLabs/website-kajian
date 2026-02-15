@@ -34,9 +34,9 @@ function getYouTubeId($url) {
 
 // Daftar video YouTube contoh (hardcoded untuk sementara)
 $contoh_videos = [
-    'https://youtu.be/irD5aNeWfbE?list=RDirD5aNeWfbE', // Rick Astley
-    'https://youtu.be/kJQP7kiw5Fk', // Despacito
-    'https://www.youtube.com/watch?v=09R8_2nJtjg', // Maroon 5
+    'https://youtu.be/scxZYkwXw4Y', // hari santri
+    'https://youtu.be/z1jlKXSGoU4', // idul adha
+    'https://youtu.be/9qll3lZCBC0', // adzan subuh
     'https://youtu.be/OPf0YbXqDm0', // Uptown Funk
     'https://www.youtube.com/watch?v=YQHsXMglC9A', // Hello
     'https://youtu.be/LXb3EKWsInQ' // Shape of You
