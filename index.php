@@ -12,6 +12,35 @@ $result = mysqli_query($conn, $query);
 // Hitung statistik
 $total_kajian = mysqli_num_rows($result);
 $kajian_bulan_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM kajian WHERE MONTH(tanggal) = MONTH(CURDATE())"))['total'];
+
+// Ambil data untuk galeri kajian (ambil 6 kajian terbaru)
+$query_galeri = "SELECT k.*, u.nama_lengkap as pemateri 
+                FROM kajian k 
+                LEFT JOIN users u ON k.created_by = u.id 
+                ORDER BY k.tanggal DESC, k.waktu ASC 
+                LIMIT 6";
+$result_galeri = mysqli_query($conn, $query_galeri);
+
+// Fungsi untuk mengekstrak YouTube ID dari berbagai format URL
+function getYouTubeId($url) {
+    if (empty($url)) return false;
+    
+    $pattern = '/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i';
+    if (preg_match($pattern, $url, $match)) {
+        return $match[1];
+    }
+    return false;
+}
+
+// Daftar video YouTube contoh (hardcoded untuk sementara)
+$contoh_videos = [
+    'https://youtu.be/irD5aNeWfbE?list=RDirD5aNeWfbE', // Rick Astley
+    'https://youtu.be/kJQP7kiw5Fk', // Despacito
+    'https://www.youtube.com/watch?v=09R8_2nJtjg', // Maroon 5
+    'https://youtu.be/OPf0YbXqDm0', // Uptown Funk
+    'https://www.youtube.com/watch?v=YQHsXMglC9A', // Hello
+    'https://youtu.be/LXb3EKWsInQ' // Shape of You
+];
 ?>
 
 <!DOCTYPE html>
@@ -22,6 +51,208 @@ $kajian_bulan_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as t
     <title>MAKN ENDE - Profil Asrama</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="assets/style.css">
+    <style>
+        /* Style tambahan untuk galeri kajian */
+        .kajian-card {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .kajian-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        
+        .kajian-image {
+            height: 200px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 48px;
+            cursor: pointer;
+            overflow: hidden;
+        }
+        
+        .kajian-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .play-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 0, 0, 0.8);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            transition: all 0.3s ease;
+        }
+        
+        .play-button:hover {
+            background: #ff0000;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+        
+        .video-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .video-overlay.active {
+            display: flex;
+        }
+        
+        .video-container {
+            width: 80%;
+            max-width: 900px;
+            position: relative;
+        }
+        
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 10px;
+        }
+        
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .close-video {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: white;
+            font-size: 30px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            z-index: 10000;
+        }
+        
+        .close-video:hover {
+            color: #ff0000;
+        }
+        
+        .kajian-content {
+            padding: 20px;
+        }
+        
+        .kajian-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+        
+        .kajian-meta {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .kajian-meta i {
+            width: 20px;
+            color: var(--primary-color);
+        }
+        
+        .kajian-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 5px;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        
+        .no-video-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            background: #dc3545;
+            color: white;
+            border-radius: 5px;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        
+        .section-title {
+            text-align: center;
+            margin: 60px 0 40px 0;
+        }
+        
+        .section-title h3 {
+            font-size: 32px;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+        
+        .section-title p {
+            color: #666;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .view-all-btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            margin-top: 30px;
+            transition: all 0.3s ease;
+        }
+        
+        .view-all-btn:hover {
+            background: var(--secondary-color);
+            transform: scale(1.05);
+        }
+        
+        .youtube-thumbnail {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .mode-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #ffc107;
+            color: #000;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+    </style>
 </head>
 <body>
     <!-- Navbar -->
@@ -46,6 +277,16 @@ $kajian_bulan_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as t
             </div>
         </div>
     </nav>
+
+    <!-- Video Overlay untuk memutar YouTube -->
+    <div class="video-overlay" id="videoOverlay">
+        <div class="video-container">
+            <button class="close-video" onclick="closeVideo()"><i class="fas fa-times"></i></button>
+            <div class="video-wrapper">
+                <iframe id="youtubePlayer" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
 
     <!-- Hero Section -->
     <section class="hero-section">
@@ -154,7 +395,7 @@ $kajian_bulan_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as t
                     </ul>
                 </div>
 
-                <!-- Kolom Kanan: Galeri/Foto (Tempat untuk gambar) -->
+                <!-- Kolom Kanan: Galeri/Foto -->
                 <div>
                     <img src="https://via.placeholder.com/600x400/1e3c72/ffffff?text=Asrama+MAKN+Ende" alt="Gedung Asrama" style="width: 100%; border-radius: var(--border-radius); margin-bottom: 30px; box-shadow: var(--box-shadow);">
                     
@@ -200,6 +441,160 @@ $kajian_bulan_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as t
             </div>
         </div>
 
+        <!-- ===== BAGIAN GALERI KAJIAN DENGAN VIDEO YOUTUBE ===== -->
+        <div class="section-title">
+            <h3><i class="fas fa-book-open"></i> Galeri Video Kajian Terbaru</h3>
+            <p>Dokumentasi video kajian islami yang telah dilaksanakan di Asrama MAKN Ende. Klik tombol play pada setiap video untuk menonton langsung.</p>
+            <div style="margin-top: 10px;">
+                <span class="mode-badge"><i class="fas fa-code"></i> Mode Sementara (Hardcoded)</span>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-bottom: 40px;">
+            <?php 
+            // Gabungkan data dari database dengan video contoh
+            $index = 0;
+            if (mysqli_num_rows($result_galeri) > 0): 
+                mysqli_data_seek($result_galeri, 0); // Reset pointer
+                while($kajian = mysqli_fetch_assoc($result_galeri)): 
+                    // Gunakan link_video dari database jika ada, jika tidak gunakan video contoh
+                    $video_url = !empty($kajian['link_video']) ? $kajian['link_video'] : $contoh_videos[$index % count($contoh_videos)];
+                    $youtube_id = getYouTubeId($video_url);
+                    $index++;
+            ?>
+                    <div class="kajian-card">
+                        <div class="kajian-image" onclick="playVideo('<?php echo $youtube_id; ?>')">
+                            <img src="https://img.youtube.com/vi/<?php echo $youtube_id; ?>/hqdefault.jpg" alt="YouTube Thumbnail" class="youtube-thumbnail">
+                            <div class="play-button">
+                                <i class="fas fa-play"></i>
+                            </div>
+                        </div>
+                        <div class="kajian-content">
+                            <h4 class="kajian-title"><?php echo htmlspecialchars($kajian['judul']); ?></h4>
+                            <div class="kajian-meta">
+                                <i class="fas fa-user"></i> <?php echo htmlspecialchars($kajian['pemateri'] ?? 'Ustadz/ustadzah'); ?>
+                            </div>
+                            <div class="kajian-meta">
+                                <i class="fas fa-calendar"></i> <?php echo date('d M Y', strtotime($kajian['tanggal'])); ?>
+                            </div>
+                            <div class="kajian-meta">
+                                <i class="fas fa-clock"></i> <?php echo date('H:i', strtotime($kajian['waktu'])); ?> WITA
+                            </div>
+                            <div class="kajian-meta">
+                                <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($kajian['tempat'] ?? 'Masjid/Mushola Asrama'); ?>
+                            </div>
+                            <?php if (!empty($kajian['deskripsi'])): ?>
+                                <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                                    <?php echo substr(htmlspecialchars($kajian['deskripsi']), 0, 100) . '...'; ?>
+                                </p>
+                            <?php endif; ?>
+                            <div>
+                                <span class="kajian-badge">
+                                    <i class="fab fa-youtube"></i> 
+                                    Tersedia Video
+                                    <?php if (empty($kajian['link_video'])): ?>
+                                        <span style="background: #ffc107; color: #000; padding: 2px 5px; border-radius: 3px; margin-left: 5px; font-size: 10px;">Contoh</span>
+                                    <?php endif; ?>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                <?php endwhile; ?>
+            <?php else: ?>
+                <!-- Tampilkan hanya video contoh jika tidak ada data kajian -->
+                <?php for($i = 0; $i < 6; $i++): 
+                    $youtube_id = getYouTubeId($contoh_videos[$i % count($contoh_videos)]);
+                ?>
+                    <div class="kajian-card">
+                        <div class="kajian-image" onclick="playVideo('<?php echo $youtube_id; ?>')">
+                            <img src="https://img.youtube.com/vi/<?php echo $youtube_id; ?>/hqdefault.jpg" alt="YouTube Thumbnail" class="youtube-thumbnail">
+                            <div class="play-button">
+                                <i class="fas fa-play"></i>
+                            </div>
+                        </div>
+                        <div class="kajian-content">
+                            <h4 class="kajian-title">Kajian Islami Pekanan <?php echo $i + 1; ?></h4>
+                            <div class="kajian-meta">
+                                <i class="fas fa-user"></i> Ustadz Ahmad Fauzi
+                            </div>
+                            <div class="kajian-meta">
+                                <i class="fas fa-calendar"></i> <?php echo date('d M Y', strtotime("-$i days")); ?>
+                            </div>
+                            <div class="kajian-meta">
+                                <i class="fas fa-clock"></i> 08:00 - 10:00 WITA
+                            </div>
+                            <div class="kajian-meta">
+                                <i class="fas fa-map-marker-alt"></i> Masjid Asrama
+                            </div>
+                            <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                                Kajian rutin pekanan membahas kitab-kitab klasik dan tafsir Al-Qur'an...
+                            </p>
+                            <div>
+                                <span class="kajian-badge">
+                                    <i class="fab fa-youtube"></i> 
+                                    Video Contoh
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                <?php endfor; ?>
+            <?php endif; ?>
+        </div>
+
+        <!-- Tombol Lihat Semua Kajian -->
+        <div style="text-align: center; margin-bottom: 60px;">
+            <a href="kajian.php" class="view-all-btn">
+                <i class="fas fa-list"></i> Lihat Semua Kajian
+            </a>
+        </div>
+
+        <!-- Tambahan fitur jadwal kajian mingguan -->
+        <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); padding: 40px; border-radius: var(--border-radius); color: white; margin-bottom: 60px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center;">
+                <div>
+                    <h3 style="color: white; font-size: 28px; margin-bottom: 20px;">
+                        <i class="fas fa-calendar-alt"></i> Jadwal Kajian Rutin
+                    </h3>
+                    <p style="margin-bottom: 25px; opacity: 0.9;">Ikuti kajian islami rutin yang diselenggarakan di Asrama MAKN Ende untuk meningkatkan keimanan dan pengetahuan agama.</p>
+                    
+                    <ul style="list-style: none;">
+                        <li style="margin-bottom: 15px; display: flex; gap: 15px;">
+                            <i class="fas fa-check-circle" style="font-size: 20px;"></i>
+                            <div>
+                                <strong>Senin Malam (Ba'da Isya)</strong><br>
+                                <small>Kajian Tafsir Al-Qur'an - Ustadz Abdul Rahman</small>
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 15px; display: flex; gap: 15px;">
+                            <i class="fas fa-check-circle" style="font-size: 20px;"></i>
+                            <div>
+                                <strong>Rabu Malam (Ba'da Isya)</strong><br>
+                                <small>Kajian Hadits Arbain - Ustadz Muhammad Ali</small>
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 15px; display: flex; gap: 15px;">
+                            <i class="fas fa-check-circle" style="font-size: 20px;"></i>
+                            <div>
+                                <strong>Jumat Pagi (Ba'da Subuh)</strong><br>
+                                <small>Kajian Fiqih Ibadah - Ustadz Ahmad Fauzi</small>
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 15px; display: flex; gap: 15px;">
+                            <i class="fas fa-check-circle" style="font-size: 20px;"></i>
+                            <div>
+                                <strong>Ahad Pagi (08.00 - 10.00)</strong><br>
+                                <small>Kajian Umum & Tanya Jawab - Bersama Para Asatidz</small>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div style="text-align: center;">
+                    <i class="fas fa-quran" style="font-size: 120px; opacity: 0.5;"></i>
+                    <p style="margin-top: 20px; font-style: italic;">"Sebaik-baik kalian adalah yang mempelajari Al-Qur'an dan mengajarkannya." (HR. Bukhari)</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Footer -->
@@ -239,6 +634,57 @@ $kajian_bulan_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as t
             </div>
         </div>
     </footer>
+
+    <script>
+        // Fungsi untuk memutar video YouTube
+        function playVideo(videoId) {
+            if (!videoId) {
+                alert('Maaf, video untuk kajian ini belum tersedia.');
+                return;
+            }
+            
+            const overlay = document.getElementById('videoOverlay');
+            const player = document.getElementById('youtubePlayer');
+            
+            // Set sumber video YouTube dengan autoplay
+            player.src = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0';
+            
+            // Tampilkan overlay
+            overlay.classList.add('active');
+            
+            // Cegah scroll pada body
+            document.body.style.overflow = 'hidden';
+        }
+        
+        // Fungsi untuk menutup video
+        function closeVideo() {
+            const overlay = document.getElementById('videoOverlay');
+            const player = document.getElementById('youtubePlayer');
+            
+            // Hentikan video dengan menghapus src
+            player.src = '';
+            
+            // Sembunyikan overlay
+            overlay.classList.remove('active');
+            
+            // Kembalikan scroll
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Tutup overlay jika klik di luar video (pada background)
+        document.getElementById('videoOverlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeVideo();
+            }
+        });
+        
+        // Tutup dengan tombol ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeVideo();
+            }
+        });
+    </script>
 
 </body>
 </html>

@@ -165,39 +165,6 @@ if (isset($_GET['reset'])) {
                 </tbody>
             </table>
         </div>
-
-        <!-- Informasi Reset Password -->
-        <div style="margin-top: 30px; background: #e8f4fd; padding: 20px; border-radius: var(--border-radius); border-left: 5px solid #17a2b8;">
-            <div style="display: flex; align-items: start; gap: 15px;">
-                <i class="fas fa-info-circle" style="font-size: 24px; color: #17a2b8;"></i>
-                <div>
-                    <strong style="font-size: 16px;">Informasi Reset Password:</strong>
-                    <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; color: #555;">
-                        <li>Reset password akan mengubah password user menjadi <strong>password123</strong></li>
-                        <li>User dapat login dengan password baru dan menggantinya nanti di profil masing-masing</li>
-                        <li>Admin utama (dengan role admin) tidak dapat dihapus atau direset</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div style="margin-top: 40px; display: flex; gap: 20px; flex-wrap: wrap;">
-            <a href="dashboard.php" style="background: white; padding: 15px 25px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: inline-flex; align-items: center; gap: 10px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
-                <i class="fas fa-arrow-left" style="color: #667eea;"></i>
-                <span>Kembali ke Dashboard</span>
-            </a>
-            
-            <a href="kelola_kajian.php" style="background: white; padding: 15px 25px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: inline-flex; align-items: center; gap: 10px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
-                <i class="fas fa-calendar-alt" style="color: #28a745;"></i>
-                <span>Kelola Kajian</span>
-            </a>
-            
-            <a href="../index.php" target="_blank" style="background: white; padding: 15px 25px; border-radius: var(--border-radius); text-decoration: none; color: var(--text-dark); display: inline-flex; align-items: center; gap: 10px; box-shadow: var(--shadow-md); transition: all 0.3s ease;">
-                <i class="fas fa-globe" style="color: #17a2b8;"></i>
-                <span>Lihat Website</span>
-            </a>
-        </div>
     </div>
 
     <!-- CSS untuk memperbaiki tampilan tombol -->
