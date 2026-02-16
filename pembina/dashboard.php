@@ -140,14 +140,22 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
     </style>
 </head>
 <body>
-    <nav class="navbar">
+     <nav class="navbar">
         <div class="container">
-            <h1>Jadwal Kajian - Pembina</h1>
-            <ul>
-                <li><a href="dashboard.php">Dashboard</a></li>
-                <li><a href="kelola_kajian.php">Kelola Kajian</a></li>
-                <li><a href="../logout.php">Logout (<?php echo htmlspecialchars($nama_pembina); ?>)</a></li>
-            </ul>
+            <div class="navbar-brand">
+                <div class="navbar-logo">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <div>
+                    <h1>MAKN ENDE <span>Panel Admin</span></h1>
+                </div>
+            </div>
+            <div class="navbar-menu">
+                <a href="dashboard.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="kelola_kajian.php"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
+                <a href="kelola_user.php"><i class="fas fa-users-cog"></i> Kelola User</a>
+                <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
         </div>
     </nav>
 
