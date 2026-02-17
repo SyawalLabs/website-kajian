@@ -1,231 +1,100 @@
 <?php
 include '../includes/auth.php';
-if (!isLoggedIn() || !isAdmin()) {
+if (!isLoggedIn() || !isPembina()) {
     redirect('../login.php');
 }
 
-// Handle Hapus
-if (isset($_GET['hapus'])) {
-    $id = mysqli_real_escape_string($conn, $_GET['hapus']);
-    mysqli_query($conn, "DELETE FROM kajian WHERE id='$id'");
-    $_SESSION['success_message'] = "Data kajian berhasil dihapus!";
-    redirect('kelola_kajian.php');
-}
+$success_message = '';
+$error_message = '';
 
-// FUNGSI VALIDASI BARU - Lebih ketat
-
-/**
- * Cek apakah waktu bentrok dengan jadwal lain di TEMPAT MANAPUN
- * Ini akan mencegah jadwal di waktu yang sama di semua tempat
- */
-function cekBentrokWaktuGlobal($conn, $tanggal, $waktu_mulai, $id = null, $durasi = 2) {
-    $waktu = strtotime($waktu_mulai);
-    $waktu_mulai_menit = date('H', $waktu) * 60 + date('i', $waktu);
-    $waktu_selesai_menit = $waktu_mulai_menit + ($durasi * 60);
-    
-    // Ambil semua jadwal di tanggal yang sama
-    $query = "SELECT id, waktu, tempat, judul, pemateri FROM kajian WHERE tanggal = '$tanggal'";
-    if ($id) {
-        $query .= " AND id != '$id'";
-    }
-    
-    $result = mysqli_query($conn, $query);
-    $bentrok_list = [];
-    
-    while ($row = mysqli_fetch_assoc($result)) {
-        $waktu_existing = strtotime($row['waktu']);
-        $waktu_existing_menit = date('H', $waktu_existing) * 60 + date('i', $waktu_existing);
-        $waktu_existing_selesai = $waktu_existing_menit + ($durasi * 60);
-        
-        // Cek apakah waktu bentrok (interval 2 jam)
-        if (($waktu_mulai_menit >= $waktu_existing_menit && $waktu_mulai_menit < $waktu_existing_selesai) ||
-            ($waktu_selesai_menit > $waktu_existing_menit && $waktu_selesai_menit <= $waktu_existing_selesai) ||
-            ($waktu_mulai_menit <= $waktu_existing_menit && $waktu_selesai_menit >= $waktu_existing_selesai)) {
-            
-            $bentrok_list[] = [
-                'judul' => $row['judul'],
-                'tempat' => $row['tempat'],
-                'waktu' => $row['waktu'],
-                'pemateri' => $row['pemateri']
-            ];
-        }
-    }
-    
-    return $bentrok_list;
-}
-
-/**
- * Cek apakah pemateri bentrok (mengajar di dua tempat berbeda di waktu yang sama)
- */
-function cekBentrokPemateri($conn, $tanggal, $waktu_mulai, $pemateri, $id = null, $durasi = 2) {
-    $waktu = strtotime($waktu_mulai);
-    $waktu_mulai_menit = date('H', $waktu) * 60 + date('i', $waktu);
-    $waktu_selesai_menit = $waktu_mulai_menit + ($durasi * 60);
-    
-    // Cek jadwal pemateri yang sama
-    $query = "SELECT id, waktu, tempat, judul FROM kajian 
-              WHERE tanggal = '$tanggal' AND pemateri = '$pemateri'";
-    if ($id) {
-        $query .= " AND id != '$id'";
-    }
-    
-    $result = mysqli_query($conn, $query);
-    
-    while ($row = mysqli_fetch_assoc($result)) {
-        $waktu_existing = strtotime($row['waktu']);
-        $waktu_existing_menit = date('H', $waktu_existing) * 60 + date('i', $waktu_existing);
-        $waktu_existing_selesai = $waktu_existing_menit + ($durasi * 60);
-        
-        // Cek bentrok waktu
-        if (($waktu_mulai_menit >= $waktu_existing_menit && $waktu_mulai_menit < $waktu_existing_selesai) ||
-            ($waktu_selesai_menit > $waktu_existing_menit && $waktu_selesai_menit <= $waktu_existing_selesai) ||
-            ($waktu_mulai_menit <= $waktu_existing_menit && $waktu_selesai_menit >= $waktu_existing_selesai)) {
-            return $row;
-        }
-    }
-    
-    return false;
-}
-
-/**
- * Cek apakah tempat sudah digunakan di waktu yang berdekatan
- */
-function cekBentrokTempat($conn, $tanggal, $waktu_mulai, $tempat, $id = null, $durasi = 2) {
-    $waktu = strtotime($waktu_mulai);
-    $waktu_mulai_menit = date('H', $waktu) * 60 + date('i', $waktu);
-    $waktu_selesai_menit = $waktu_mulai_menit + ($durasi * 60);
-    
-    // Cek jadwal di tempat yang sama
-    $query = "SELECT id, waktu, judul, pemateri FROM kajian 
-              WHERE tanggal = '$tanggal' AND tempat = '$tempat'";
-    if ($id) {
-        $query .= " AND id != '$id'";
-    }
-    
-    $result = mysqli_query($conn, $query);
-    
-    while ($row = mysqli_fetch_assoc($result)) {
-        $waktu_existing = strtotime($row['waktu']);
-        $waktu_existing_menit = date('H', $waktu_existing) * 60 + date('i', $waktu_existing);
-        $waktu_existing_selesai = $waktu_existing_menit + ($durasi * 60);
-        
-        // Cek bentrok waktu
-        if (($waktu_mulai_menit >= $waktu_existing_menit && $waktu_mulai_menit < $waktu_existing_selesai) ||
-            ($waktu_selesai_menit > $waktu_existing_menit && $waktu_selesai_menit <= $waktu_existing_selesai) ||
-            ($waktu_mulai_menit <= $waktu_existing_menit && $waktu_selesai_menit >= $waktu_existing_selesai)) {
-            return $row;
-        }
-    }
-    
-    return false;
-}
-
-// Handle Tambah/Edit
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+// Proses tambah kajian
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['simpan'])) {
     $judul = mysqli_real_escape_string($conn, $_POST['judul']);
     $pemateri = mysqli_real_escape_string($conn, $_POST['pemateri']);
-    $tanggal = mysqli_real_escape_string($conn, $_POST['tanggal']);
-    $waktu = mysqli_real_escape_string($conn, $_POST['waktu']);
+    $tanggal = $_POST['tanggal'];
+    $waktu = $_POST['waktu'];
     $tempat = mysqli_real_escape_string($conn, $_POST['tempat']);
     $deskripsi = mysqli_real_escape_string($conn, $_POST['deskripsi']);
+    $link_video = mysqli_real_escape_string($conn, $_POST['link_video']);
+    $created_by = $_SESSION['user_id'];
     
-    $errors = [];
+    $query = "INSERT INTO kajian (judul, pemateri, tanggal, waktu, tempat, deskripsi, link_video, created_by) 
+              VALUES ('$judul', '$pemateri', '$tanggal', '$waktu', '$tempat', '$deskripsi', '$link_video', '$created_by')";
     
-    // Validasi dasar
-    if (strtotime($tanggal) < strtotime(date('Y-m-d'))) {
-        $errors[] = "Tanggal kajian tidak boleh kurang dari hari ini!";
-    }
-    
-    if (empty($judul) || empty($pemateri) || empty($tanggal) || empty($waktu) || empty($tempat)) {
-        $errors[] = "Semua field wajib diisi!";
-    }
-    
-    if (strlen($judul) < 3) {
-        $errors[] = "Judul kajian minimal 3 karakter!";
-    }
-    
-    if (strlen($judul) > 200) {
-        $errors[] = "Judul kajian maksimal 200 karakter!";
-    }
-    
-    if (strlen($tempat) > 200) {
-        $errors[] = "Tempat kajian maksimal 200 karakter!";
-    }
-    
-    $id = $_POST['id'] ?? null;
-    
-    // VALIDASI BENTROK WAKTU GLOBAL (semua tempat)
-    $bentrok_global = cekBentrokWaktuGlobal($conn, $tanggal, $waktu, $id, 2); // Durasi 2 jam
-    
-    if (!empty($bentrok_global)) {
-        $bentrok_info = [];
-        foreach ($bentrok_global as $b) {
-            $bentrok_info[] = "'{$b['judul']}' di {$b['tempat']} pukul " . date('H:i', strtotime($b['waktu']));
-        }
-        $errors[] = "Jadwal bentrok dengan kajian lain: " . implode(", ", $bentrok_info) . ". Minimal jarak antar kajian 2 jam!";
-    }
-    
-    // VALIDASI BENTROK PEMATERI
-    $bentrok_pemateri = cekBentrokPemateri($conn, $tanggal, $waktu, $pemateri, $id, 2);
-    if ($bentrok_pemateri) {
-        $errors[] = "Ustadz {$pemateri} sudah mengajar di '{$bentrok_pemateri['judul']}' di {$bentrok_pemateri['tempat']} pada pukul " . date('H:i', strtotime($bentrok_pemateri['waktu'])) . " (jarak kurang dari 2 jam)!";
-    }
-    
-    // VALIDASI BENTROK TEMPAT
-    $bentrok_tempat = cekBentrokTempat($conn, $tanggal, $waktu, $tempat, $id, 2);
-    if ($bentrok_tempat) {
-        $errors[] = "Tempat {$tempat} sudah digunakan untuk '{$bentrok_tempat['judul']}' pada pukul " . date('H:i', strtotime($bentrok_tempat['waktu'])) . " (jarak kurang dari 2 jam)!";
-    }
-    
-    // Eksekusi jika tidak ada error
-    if (empty($errors)) {
-        if (isset($_POST['id']) && !empty($_POST['id'])) {
-            // Mode Edit
-            $id = $_POST['id'];
-            $query = "UPDATE kajian SET 
-                      judul='$judul', 
-                      pemateri='$pemateri',
-                      tanggal='$tanggal',
-                      waktu='$waktu',
-                      tempat='$tempat',
-                      deskripsi='$deskripsi'
-                      WHERE id='$id'";
-            
-            if (mysqli_query($conn, $query)) {
-                $_SESSION['success_message'] = "Data kajian berhasil diupdate!";
-                redirect('kelola_kajian.php');
-            } else {
-                $errors[] = "Error: " . mysqli_error($conn);
-            }
-        } else {
-            // Mode Tambah
-            $query = "INSERT INTO kajian (judul, pemateri, tanggal, waktu, tempat, deskripsi, created_by) 
-                      VALUES ('$judul', '$pemateri', '$tanggal', '$waktu', '$tempat', '$deskripsi', '{$_SESSION['user_id']}')";
-            
-            if (mysqli_query($conn, $query)) {
-                $_SESSION['success_message'] = "Data kajian berhasil ditambahkan!";
-                redirect('kelola_kajian.php');
-            } else {
-                $errors[] = "Error: " . mysqli_error($conn);
-            }
-        }
+    if (mysqli_query($conn, $query)) {
+        $success_message = "Kajian berhasil ditambahkan!";
+    } else {
+        $error_message = "Gagal menambahkan kajian: " . mysqli_error($conn);
     }
 }
 
-// Ambil data untuk edit
+// Proses edit kajian
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update'])) {
+    $id = $_POST['id'];
+    $judul = mysqli_real_escape_string($conn, $_POST['judul']);
+    $pemateri = mysqli_real_escape_string($conn, $_POST['pemateri']);
+    $tanggal = $_POST['tanggal'];
+    $waktu = $_POST['waktu'];
+    $tempat = mysqli_real_escape_string($conn, $_POST['tempat']);
+    $deskripsi = mysqli_real_escape_string($conn, $_POST['deskripsi']);
+    $link_video = mysqli_real_escape_string($conn, $_POST['link_video']);
+    $created_by = $_SESSION['user_id'];
+    
+    // Pastikan hanya bisa mengedit milik sendiri
+    $query = "UPDATE kajian SET 
+              judul = '$judul', 
+              pemateri = '$pemateri', 
+              tanggal = '$tanggal', 
+              waktu = '$waktu', 
+              tempat = '$tempat', 
+              deskripsi = '$deskripsi', 
+              link_video = '$link_video' 
+              WHERE id = $id AND created_by = $created_by";
+    
+    if (mysqli_query($conn, $query)) {
+        $success_message = "Kajian berhasil diperbarui!";
+    } else {
+        $error_message = "Gagal memperbarui kajian: " . mysqli_error($conn);
+    }
+}
+
+// Proses hapus kajian
+if (isset($_GET['hapus'])) {
+    $id = $_GET['hapus'];
+    $created_by = $_SESSION['user_id'];
+    
+    // Pastikan hanya bisa menghapus milik sendiri
+    $query = "DELETE FROM kajian WHERE id = $id AND created_by = $created_by";
+    
+    if (mysqli_query($conn, $query)) {
+        $success_message = "Kajian berhasil dihapus!";
+    } else {
+        $error_message = "Gagal menghapus kajian: " . mysqli_error($conn);
+    }
+}
+
+// Ambil data kajian untuk diedit
 $edit_data = null;
 if (isset($_GET['edit'])) {
     $id = $_GET['edit'];
-    $result = mysqli_query($conn, "SELECT * FROM kajian WHERE id='$id'");
-    $edit_data = mysqli_fetch_assoc($result);
+    $created_by = $_SESSION['user_id'];
+    $query = "SELECT * FROM kajian WHERE id = $id AND created_by = $created_by";
+    $result = mysqli_query($conn, $query);
+    if (mysqli_num_rows($result) > 0) {
+        $edit_data = mysqli_fetch_assoc($result);
+    } else {
+        $error_message = "Data kajian tidak ditemukan atau Anda tidak memiliki akses!";
+    }
 }
 
-// Tampilkan pesan sukses
-$success_message = '';
-if (isset($_SESSION['success_message'])) {
-    $success_message = $_SESSION['success_message'];
-    unset($_SESSION['success_message']);
-}
+// Ambil semua kajian milik pembina yang login
+$created_by = $_SESSION['user_id'];
+$query = "SELECT * FROM kajian WHERE created_by = $created_by ORDER BY tanggal DESC, waktu DESC";
+$result = mysqli_query($conn, $query);
+$total_kajian = mysqli_num_rows($result);
+
+// Ambil nama pembina dari session
+$nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : 'Pembina';
 ?>
 
 <!DOCTYPE html>
@@ -233,621 +102,699 @@ if (isset($_SESSION['success_message'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola Kajian - Admin MAKN ENDE</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Kelola Kajian - Pembina</title>
     <link rel="stylesheet" href="../assets/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        .validation-info {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f6f9;
+        }
+
+        .navbar {
+            background: #343a40;
             color: white;
-            padding: 20px 25px;
-            margin-bottom: 25px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 15px 0;
         }
-        
-        .validation-info ul {
-            margin-top: 10px;
+        .navbar .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .navbar ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+        .navbar ul li {
             margin-left: 20px;
-            color: #fff;
         }
-        
-        .validation-info li {
-            margin-bottom: 5px;
+        .navbar ul li a {
+            color: white;
+            text-decoration: none;
         }
-        
-        .error-list {
-            background-color: #f8d7da;
-            border-left: 5px solid #dc3545;
-            padding: 20px 25px;
-            margin-bottom: 25px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .navbar ul li a:hover {
+            color: #007bff;
         }
-        
-        .error-list ul {
-            margin: 15px 0 0 25px;
-            color: #721c24;
+        .main-container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
         }
-        
-        .error-list li {
-            margin-bottom: 8px;
-            font-weight: 500;
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
         }
-        
-        .jadwal-tersedia {
-            background-color: #d4edda;
-            border-left: 5px solid #28a745;
-            padding: 15px 20px;
-            margin: 20px 0;
-            border-radius: 8px;
-            color: #155724;
-            font-weight: 500;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .jadwal-tidak-tersedia {
-            background-color: #f8d7da;
-            border-left: 5px solid #dc3545;
-            padding: 15px 20px;
-            margin: 20px 0;
-            border-radius: 8px;
-            color: #721c24;
-            font-weight: 500;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .jadwal-info {
+
+        .page-header h2 {
+            font-size: 2rem;
+            color: #1e3c72;
             display: flex;
             align-items: center;
-            gap: 15px;
-            margin-top: 10px;
-            font-size: 1rem;
+            gap: 10px;
         }
-        
-        .jadwal-info i {
-            font-size: 1.5rem;
+
+        .page-header h2 i {
+            color: #2a5298;
         }
-        
-        .badge-info {
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #1e3c72;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2a5298;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(30,60,114,0.3);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #1e3c72;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .stats-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 8px 20px;
-            border-radius: 50px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .conflict-row {
-            background-color: #fff3cd !important;
-            border-left: 4px solid #ffc107;
-        }
-        
-        .warning-badge {
-            background-color: #dc3545;
-            color: white;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-left: 8px;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
             display: inline-block;
+            min-width: 250px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        
-        .time-gap-warning {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
+
+        .stats-card h3 {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .stats-card .number {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+
+        .kajian-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .kajian-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            border: 1px solid #e0e0e0;
+        }
+
+        .kajian-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }
+
+        .kajian-header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 15px 20px;
+        }
+
+        .kajian-header h3 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+
+        .kajian-header .pemateri {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .kajian-body {
+            padding: 20px;
+        }
+
+        .kajian-info {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #555;
+            font-size: 0.95rem;
+        }
+
+        .info-item i {
+            width: 20px;
+            color: #1e3c72;
+        }
+
+        .kajian-deskripsi {
+            background: #f8f9fa;
             padding: 15px;
             border-radius: 8px;
             margin: 15px 0;
             font-size: 0.95rem;
+            color: #666;
+            max-height: 100px;
+            overflow-y: auto;
         }
-        
-        .btn-disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+
+        .kajian-footer {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
         }
-        
-        .stat-card-conflict {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 10px;
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 15px;
+            grid-column: 1/-1;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: #ccc;
             margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            max-width: 600px;
+            width: 90%;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border-radius: 15px 15px 0 0;
+        }
+
+        .modal-header h3 {
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-header .close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: white;
+            opacity: 0.8;
+        }
+
+        .modal-header .close:hover {
+            opacity: 1;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #1e3c72;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30,60,114,0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .badge {
             display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .link-video {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: #1e3c72;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .link-video:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar">
+   <nav class="navbar">
         <div class="container">
             <div class="navbar-brand">
                 <div class="navbar-logo">
-                    <i class="fas fa-calendar-alt"></i>
+                    <i class="fas fa-user-shield"></i>
                 </div>
                 <div>
-                    <h1>MAKN ENDE <span>Panel Admin - Kelola Kajian</span></h1>
+                    <h1>MAKN ENDE <span>Panel Pembina</span></h1>
                 </div>
             </div>
             <div class="navbar-menu">
                 <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-                <a href="kelola_kajian.php" class="active"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
-                <a href="kelola_user.php"><i class="fas fa-users-cog"></i> Kelola User</a>
+                <a href="kelola_kajian.php"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
+                <a href="kelola_santri.php" class="active"><i class="fas fa-users-cog"></i> Kelola Santri</a>
                 <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </div>
         </div>
     </nav>
 
-    <div class="container">
-        <!-- Breadcrumb -->
-        <div class="breadcrumb">
-            <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-            <span class="separator"><i class="fas fa-chevron-right"></i></span>
-            <a href="kelola_kajian.php"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
-            <?php if ($edit_data): ?>
-            <span class="separator"><i class="fas fa-chevron-right"></i></span>
-            <span>Edit Kajian</span>
-            <?php endif; ?>
+
+    <div class="main-container">
+        <div class="page-header">
+            <h2>
+                <i class="fas fa-calendar-alt"></i>
+                Kelola Kajian
+            </h2>
+            <button class="btn btn-primary" onclick="openTambahModal()">
+                <i class="fas fa-plus"></i> Tambah Kajian Baru
+            </button>
         </div>
 
-        <!-- Info Panel dengan aturan yang jelas -->
-        <div class="validation-info">
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                <i class="fas fa-shield-alt" style="font-size: 2rem;"></i>
-                <h3 style="margin: 0; color: white;">Sistem Proteksi Jadwal MAKN ENDE</h3>
-            </div>
-            <p style="margin-bottom: 10px;"><strong>Aturan yang diterapkan:</strong></p>
-            <ul>
-                <li><i class="fas fa-clock"></i> <strong>JARAK MINIMUM 2 JAM</strong> antar kajian di hari yang sama (di seluruh tempat)</li>
-                <li><i class="fas fa-chalkboard-teacher"></i> <strong>Seorang ustadz TIDAK BOLEH</strong> mengajar di dua tempat berbeda dalam rentang 2 jam</li>
-                <li><i class="fas fa-mosque"></i> <strong>Satu tempat TIDAK BOLEH</strong> digunakan untuk dua kajian dalam rentang 2 jam</li>
-                <li><i class="fas fa-exclamation-triangle"></i> Jika ada jadwal yang bentrok, sistem akan menolak penyimpanan</li>
-            </ul>
-            <div style="margin-top: 15px; background: rgba(255,255,255,0.2); padding: 10px; border-radius: 5px;">
-                <i class="fas fa-info-circle"></i> Contoh: Jika ada kajian jam 08:00, maka kajian berikutnya minimal jam 10:00
-            </div>
-        </div>
-
-        <!-- Form Title -->
-        <h2 class="dashboard-title">
-            <i class="fas fa-<?php echo $edit_data ? 'edit' : 'plus-circle'; ?>"></i> 
-            <?php echo $edit_data ? 'Edit Kajian' : 'Tambah Kajian Baru'; ?>
-        </h2>
-        
-        <!-- Success Message -->
         <?php if ($success_message): ?>
             <div class="alert alert-success">
                 <i class="fas fa-check-circle"></i>
                 <?php echo $success_message; ?>
             </div>
         <?php endif; ?>
-        
-        <!-- Error Messages -->
-        <?php if (isset($errors) && !empty($errors)): ?>
-            <div class="error-list">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                    <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; color: #dc3545;"></i>
-                    <strong style="font-size: 1.1rem;">Validasi Gagal:</strong>
-                </div>
-                <ul>
-                    <?php foreach ($errors as $error): ?>
-                        <li><i class="fas fa-times-circle" style="color: #dc3545; margin-right: 8px;"></i><?php echo $error; ?></li>
-                    <?php endforeach; ?>
-                </ul>
+
+        <?php if ($error_message): ?>
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                <?php echo $error_message; ?>
             </div>
         <?php endif; ?>
-        
-        <!-- Form -->
-        <form method="POST" class="form-container" id="formKajian">
-            <?php if ($edit_data): ?>
-                <input type="hidden" name="id" value="<?php echo $edit_data['id']; ?>">
-            <?php endif; ?>
-            
-            <div class="form-group">
-                <label><i class="fas fa-heading"></i> Judul Kajian</label>
-                <input type="text" name="judul" id="judul" value="<?php echo $edit_data['judul'] ?? ''; ?>" placeholder="Contoh: Kajian Fiqih Wanita" required maxlength="200">
-            </div>
-            
-            <div class="form-group">
-                <label><i class="fas fa-user-tie"></i> Pemateri / Ustadz</label>
-                <input type="text" name="pemateri" id="pemateri" value="<?php echo $edit_data['pemateri'] ?? ''; ?>" placeholder="Contoh: Ustadz Ahmad" required>
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label><i class="fas fa-calendar-day"></i> Tanggal</label>
-                    <input type="date" name="tanggal" id="tanggal" value="<?php echo $edit_data['tanggal'] ?? ''; ?>" min="<?php echo date('Y-m-d'); ?>" required>
-                </div>
-                
-                <div class="form-group">
-                    <label><i class="fas fa-clock"></i> Waktu</label>
-                    <input type="time" name="waktu" id="waktu" value="<?php echo $edit_data['waktu'] ?? ''; ?>" required>
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <label><i class="fas fa-map-marker-alt"></i> Tempat / Lokasi</label>
-                <input type="text" name="tempat" id="tempat" value="<?php echo $edit_data['tempat'] ?? ''; ?>" placeholder="Contoh: Masjid Al-Ikhlas / Ruang Kelas 2" required maxlength="200">
-            </div>
-            
-            <!-- Real-time validation info -->
-            <div id="jadwalInfo" class="jadwal-info" style="display: none;"></div>
-            
-            <!-- Time gap warning -->
-            <div id="timeGapWarning" class="time-gap-warning" style="display: none;">
-                <i class="fas fa-hourglass-half" style="color: #856404;"></i>
-                <span id="timeGapMessage"></span>
-            </div>
-            
-            <div class="form-group">
-                <label><i class="fas fa-align-left"></i> Deskripsi (Opsional)</label>
-                <textarea name="deskripsi" rows="4" placeholder="Masukkan deskripsi kajian, materi yang akan dibahas, dll."><?php echo $edit_data['deskripsi'] ?? ''; ?></textarea>
-            </div>
-            
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <button type="submit" class="btn btn-primary" id="submitBtn">
-                    <i class="fas fa-save"></i> Simpan Kajian
-                </button>
-                <?php if ($edit_data): ?>
-                    <a href="kelola_kajian.php" class="btn">
-                        <i class="fas fa-times"></i> Batal
-                    </a>
-                <?php endif; ?>
-            </div>
-        </form>
 
-        <!-- Daftar Kajian dengan Deteksi Konflik -->
-        <div style="margin-top: 50px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-                <h3 style="font-size: 1.8rem; color: var(--primary-color);">
-                    <i class="fas fa-list"></i> 
-                    Daftar Kajian
-                </h3>
-                <div style="display: flex; gap: 10px;">
-                    <span class="badge-info">
-                        <i class="fas fa-shield-alt"></i> Proteksi 2 Jam
-                    </span>
-                    <?php
-                    // Hitung konflik yang ada
-                    $conflict_count = 0;
-                    $jadwal_check = [];
-                    $konflik_detected = [];
-                    
-                    $query_conflict = "SELECT * FROM kajian ORDER BY tanggal, waktu";
-                    $result_conflict = mysqli_query($conn, $query_conflict);
-                    $all_jadwal = [];
-                    
-                    while ($row = mysqli_fetch_assoc($result_conflict)) {
-                        $all_jadwal[] = $row;
-                    }
-                    
-                    for ($i = 0; $i < count($all_jadwal); $i++) {
-                        for ($j = $i + 1; $j < count($all_jadwal); $j++) {
-                            if ($all_jadwal[$i]['tanggal'] == $all_jadwal[$j]['tanggal']) {
-                                $waktu1 = strtotime($all_jadwal[$i]['waktu']);
-                                $waktu2 = strtotime($all_jadwal[$j]['waktu']);
-                                $selisih = abs($waktu2 - $waktu1) / 60; // dalam menit
-                                
-                                if ($selisih < 120) { // kurang dari 2 jam
-                                    $conflict_count++;
-                                    $konflik_detected[] = $all_jadwal[$i]['id'];
-                                    $konflik_detected[] = $all_jadwal[$j]['id'];
-                                }
-                            }
-                        }
-                    }
-                    ?>
-                    <?php if ($conflict_count > 0): ?>
-                    <span class="warning-badge">
-                        <i class="fas fa-exclamation-triangle"></i> <?php echo $conflict_count; ?> Konflik Terdeteksi
-                    </span>
-                    <?php endif; ?>
-                </div>
+        <!-- Stats Card -->
+        <div class="stats-card">
+            <h3><i class="fas fa-calendar-check"></i> Total Kajian Saya</h3>
+            <div class="number"><?php echo $total_kajian; ?></div>
+            <div style="margin-top: 10px; font-size: 0.9rem; opacity: 0.9;">
+                <i class="fas fa-user"></i> <?php echo htmlspecialchars($nama_pembina); ?>
             </div>
-            
-            <!-- Filter dan Search -->
-            <div style="margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 250px;">
-                    <input type="text" id="searchTable" placeholder="Cari kajian..." style="width: 100%; padding: 12px 20px; border: 2px solid #e0e0e0; border-radius: 50px;">
-                </div>
-                <select id="filterTempat" style="padding: 12px 25px; border: 2px solid #e0e0e0; border-radius: 50px; background: white;">
-                    <option value="">Semua Tempat</option>
-                    <?php
-                    $tempat_query = "SELECT DISTINCT tempat FROM kajian ORDER BY tempat";
-                    $tempat_result = mysqli_query($conn, $tempat_query);
-                    while ($tempat_row = mysqli_fetch_assoc($tempat_result)) {
-                        echo "<option value='" . $tempat_row['tempat'] . "'>" . $tempat_row['tempat'] . "</option>";
-                    }
-                    ?>
-                </select>
-                <button onclick="deteksiKonflik()" class="btn btn-primary" style="padding: 12px 25px;">
-                    <i class="fas fa-exclamation-triangle"></i> Scan Konflik
-                </button>
-            </div>
-            
-            <!-- Statistik Konflik -->
-            <?php if ($conflict_count > 0): ?>
-            <div class="stat-card-conflict" style="margin-bottom: 20px;">
-                <i class="fas fa-exclamation-circle"></i>
-                <strong>PERHATIAN!</strong> Ditemukan <?php echo $conflict_count; ?> jadwal dengan jarak kurang dari 2 jam. 
-                Segera perbaiki untuk menghindari bentrok.
-            </div>
-            <?php endif; ?>
-            
-            <div class="table-container">
-                <table class="table" id="kajianTable">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>Judul</th>
-                            <th>Pemateri</th>
-                            <th>Tanggal</th>
-                            <th>Waktu</th>
-                            <th>Tempat</th>
-                            <th>Dibuat Oleh</th>
-                            <th>Status</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        // Query dengan JOIN untuk menampilkan pembuat
-                        $query = "SELECT k.*, u.nama_lengkap as pembuat 
-                                 FROM kajian k 
-                                 LEFT JOIN users u ON k.created_by = u.id 
-                                 ORDER BY k.tanggal DESC, k.waktu ASC";
-                        $result = mysqli_query($conn, $query);
-                        $no = 1;
-                        
-                        $jadwal_list = [];
-                        $konflik_set = array_flip($konflik_detected);
-                        
-                        while ($row = mysqli_fetch_assoc($result)) {
-                            $jadwal_list[] = $row;
+        </div>
+
+        <!-- Grid Kajian -->
+        <div class="kajian-grid">
+            <?php if (mysqli_num_rows($result) > 0): ?>
+                <?php while ($row = mysqli_fetch_assoc($result)): ?>
+                    <div class="kajian-card">
+                        <div class="kajian-header">
+                            <h3><?php echo htmlspecialchars($row['judul']); ?></h3>
+                            <div class="pemateri">
+                                <i class="fas fa-user"></i>
+                                <?php echo htmlspecialchars($row['pemateri']); ?>
+                            </div>
+                        </div>
+                        <div class="kajian-body">
+                            <div class="kajian-info">
+                                <div class="info-item">
+                                    <i class="fas fa-calendar"></i>
+                                    <span><?php echo date('d F Y', strtotime($row['tanggal'])); ?></span>
+                                </div>
+                                <div class="info-item">
+                                    <i class="fas fa-clock"></i>
+                                    <span><?php echo date('H:i', strtotime($row['waktu'])); ?> WIB</span>
+                                </div>
+                                <div class="info-item">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span><?php echo htmlspecialchars($row['tempat']); ?></span>
+                                </div>
+                                <?php if (!empty($row['link_video'])): ?>
+                                <div class="info-item">
+                                    <i class="fas fa-video"></i>
+                                    <a href="<?php echo htmlspecialchars($row['link_video']); ?>" target="_blank" class="link-video">
+                                        Link Video <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </div>
+                                <?php endif; ?>
+                            </div>
                             
-                            // Deteksi konflik
-                            $status = '<span style="color: green;"><i class="fas fa-check-circle"></i> OK</span>';
-                            $row_class = '';
-                            $warning_text = '';
-                            
-                            if (isset($konflik_set[$row['id']])) {
-                                $status = '<span style="color: red;"><i class="fas fa-exclamation-triangle"></i> Jarak < 2 Jam</span>';
-                                $row_class = 'conflict-row';
-                                $warning_text = '<span class="warning-badge" style="margin-left: 5px;">Konflik</span>';
-                            }
-                            
-                            echo "<tr data-tempat='" . htmlspecialchars($row['tempat']) . "' 
-                                      data-judul='" . htmlspecialchars($row['judul']) . "'
-                                      data-tanggal='" . $row['tanggal'] . "'
-                                      data-waktu='" . $row['waktu'] . "'
-                                      data-pemateri='" . htmlspecialchars($row['pemateri']) . "'
-                                      class='$row_class'>";
-                            echo "<td>" . $no++ . "</td>";
-                            echo "<td><strong>" . $row['judul'] . "</strong> $warning_text</td>";
-                            echo "<td>" . $row['pemateri'] . "</td>";
-                            echo "<td>" . date('d/m/Y', strtotime($row['tanggal'])) . "</td>";
-                            echo "<td>" . $row['waktu'] . " WIB</td>";
-                            echo "<td>" . $row['tempat'] . "</td>";
-                            echo "<td>" . ($row['pembuat'] ?? '<em>Tidak diketahui</em>') . "</td>";
-                            echo "<td>" . $status . "</td>";
-                            echo "<td>
-                                    <a href='?edit=" . $row['id'] . "' class='btn-edit' title='Edit Data'><i class='fas fa-edit'></i> Edit</a>
-                                    <a href='?hapus=" . $row['id'] . "' class='btn-hapus' onclick='return confirm(\"Yakin ingin menghapus kajian \\\"" . $row['judul'] . "\\\"?\")' title='Hapus Data'><i class='fas fa-trash'></i> Hapus</a>
-                                  </td>";
-                            echo "</tr>";
-                        }
-                        
-                        if (empty($jadwal_list)) {
-                            echo "<tr><td colspan='9' style='text-align: center; padding: 40px;'><i class='fas fa-folder-open' style='font-size: 48px; color: #ccc; margin-bottom: 10px; display: block;'></i>Belum ada data kajian</td></tr>";
-                        }
-                        ?>
-                    </tbody>
-                </table>
-            </div>
-            
-            <!-- Info Box dengan penjelasan -->
-            <div class="alert alert-info" style="margin-top: 20px; background: #e3f2fd; border-left: 5px solid #2196F3;">
-                <div style="display: flex; align-items: start; gap: 15px;">
-                    <i class="fas fa-info-circle" style="font-size: 2rem; color: #2196F3;"></i>
-                    <div>
-                        <strong style="font-size: 1.1rem;">Sistem Proteksi Jadwal MAKN ENDE</strong>
-                        <p style="margin-top: 8px;">✅ Setiap kajian wajib memiliki jarak minimal <strong>2 jam</strong> dari kajian lain di hari yang sama.<br>
-                        ✅ Seorang ustadz tidak boleh mengajar di dua tempat berbeda dalam rentang 2 jam.<br>
-                        ✅ Satu tempat tidak boleh digunakan untuk dua kajian dalam rentang 2 jam.<br>
-                        ✅ Sistem akan menolak penyimpanan jika aturan dilanggar.</p>
-                        <p style="margin-top: 10px; color: #666;"><i class="fas fa-clock"></i> Total Kajian: <?php echo count($jadwal_list); ?> | 
-                        <span style="color: <?php echo $conflict_count > 0 ? 'red' : 'green'; ?>;">
-                            <i class="fas fa-<?php echo $conflict_count > 0 ? 'exclamation-triangle' : 'check-circle'; ?>"></i> 
-                            <?php echo $conflict_count > 0 ? "$conflict_count Konflik Terdeteksi" : "Tidak Ada Konflik"; ?>
-                        </span></p>
+                            <?php if (!empty($row['deskripsi'])): ?>
+                                <div class="kajian-deskripsi">
+                                    <i class="fas fa-align-left" style="margin-right: 5px; color: #1e3c72;"></i>
+                                    <?php echo nl2br(htmlspecialchars($row['deskripsi'])); ?>
+                                </div>
+                            <?php endif; ?>
+
+                            <div style="margin-top: 10px;">
+                                <span class="badge">
+                                    <i class="fas fa-tag"></i> ID: <?php echo $row['id']; ?>
+                                </span>
+                                <span class="badge">
+                                    <i class="fas fa-clock"></i> Dibuat: <?php echo date('d/m/Y', strtotime($row['created_at'])); ?>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="kajian-footer">
+                            <a href="?edit=<?php echo $row['id']; ?>" class="btn btn-warning btn-sm">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <a href="?hapus=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" 
+                               onclick="return confirm('Yakin ingin menghapus kajian ini?')">
+                                <i class="fas fa-trash"></i> Hapus
+                            </a>
+                        </div>
                     </div>
+                <?php endwhile; ?>
+            <?php else: ?>
+                <div class="empty-state">
+                    <i class="fas fa-calendar-times"></i>
+                    <h3>Belum Ada Kajian</h3>
+                    <p>Anda belum membuat kajian. Klik tombol "Tambah Kajian Baru" untuk memulai.</p>
+                    <button class="btn btn-primary" onclick="openTambahModal()">
+                        <i class="fas fa-plus"></i> Buat Kajian Sekarang
+                    </button>
                 </div>
-            </div>
+            <?php endif; ?>
         </div>
     </div>
 
-    <script>
-        // Real-time validation
-        const tanggalInput = document.getElementById('tanggal');
-        const waktuInput = document.getElementById('waktu');
-        const tempatInput = document.getElementById('tempat');
-        const pemateriInput = document.getElementById('pemateri');
-        const jadwalInfo = document.getElementById('jadwalInfo');
-        const timeGapWarning = document.getElementById('timeGapWarning');
-        const timeGapMessage = document.getElementById('timeGapMessage');
-        const submitBtn = document.getElementById('submitBtn');
-        const formKajian = document.getElementById('formKajian');
-        
-        // Data jadwal dari PHP
-        const jadwalList = <?php echo json_encode($jadwal_list ?? []); ?>;
-        const editId = <?php echo $edit_data['id'] ?? 'null'; ?>;
-        
-        function cekDuplikasi() {
-            const tanggal = tanggalInput.value;
-            const waktu = waktuInput.value;
-            const tempat = tempatInput.value;
-            const pemateri = pemateriInput.value;
-            
-            if (tanggal && waktu && tempat && pemateri) {
-                let conflicts = [];
-                let isBlocked = false;
-                
-                // Konversi waktu input ke menit
-                const [jam, menit] = waktu.split(':').map(Number);
-                const waktuMulaiMenit = jam * 60 + menit;
-                const waktuSelesaiMenit = waktuMulaiMenit + 120; // +2 jam
-                
-                // Cek semua jadwal yang ada
-                for (let j of jadwalList) {
-                    if (j.id == editId) continue; // Skip data sendiri
+    <!-- Modal Tambah Kajian -->
+    <div id="tambahModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> Tambah Kajian Baru</h3>
+                <button class="close" onclick="closeModal('tambahModal')">&times;</button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="judul">Judul Kajian *</label>
+                        <input type="text" id="judul" name="judul" required 
+                               placeholder="Contoh: Kajian Fiqh Bab Thaharah">
+                    </div>
                     
-                    if (j.tanggal === tanggal) {
-                        const [jJam, jMenit] = j.waktu.split(':').map(Number);
-                        const waktuJMenit = jJam * 60 + jMenit;
-                        const waktuJSelesai = waktuJMenit + 120;
+                    <div class="form-group">
+                        <label for="pemateri">Pemateri *</label>
+                        <input type="text" id="pemateri" name="pemateri" required 
+                               placeholder="Contoh: Ustadz Rifai">
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tanggal">Tanggal *</label>
+                            <input type="date" id="tanggal" name="tanggal" required 
+                                   value="<?php echo date('Y-m-d'); ?>">
+                        </div>
                         
-                        // Cek bentrok
-                        if ((waktuMulaiMenit >= waktuJMenit && waktuMulaiMenit < waktuJSelesai) ||
-                            (waktuSelesaiMenit > waktuJMenit && waktuSelesaiMenit <= waktuJSelesai) ||
-                            (waktuMulaiMenit <= waktuJMenit && waktuSelesaiMenit >= waktuJSelesai)) {
-                            
-                            // Hitung selisih waktu
-                            const selisih = Math.abs(waktuMulaiMenit - waktuJMenit);
-                            const jamSelisih = Math.floor(selisih / 60);
-                            const menitSelisih = selisih % 60;
-                            
-                            let conflictMsg = `Bentrok dengan "${j.judul}" di ${j.tempat} (${j.waktu}`;
-                            
-                            if (j.pemateri === pemateri) {
-                                conflictMsg += ` - PEMATERI SAMA!`;
-                                isBlocked = true;
-                            }
-                            
-                            if (j.tempat === tempat) {
-                                conflictMsg += ` - TEMPAT SAMA!`;
-                                isBlocked = true;
-                            }
-                            
-                            conflictMsg += `) - jarak ${jamSelisih} jam ${menitSelisih} menit`;
-                            conflicts.push(conflictMsg);
-                            
-                            // Tampilkan warning
-                            timeGapWarning.style.display = 'flex';
-                            timeGapMessage.innerHTML = `⚠️ Peringatan: Jarak dengan kajian "${j.judul}" hanya ${jamSelisih} jam ${menitSelisih} menit! Minimal 2 jam.`;
-                        }
-                    }
-                }
-                
-                if (conflicts.length > 0) {
-                    jadwalInfo.style.display = 'flex';
-                    jadwalInfo.className = 'jadwal-info jadwal-tidak-tersedia';
-                    jadwalInfo.innerHTML = '<i class="fas fa-times-circle"></i> <strong>Jadwal tidak dapat disimpan!</strong><br>' + 
-                                          conflicts.join('<br>');
-                    submitBtn.disabled = true;
-                } else {
-                    jadwalInfo.style.display = 'flex';
-                    jadwalInfo.className = 'jadwal-info jadwal-tersedia';
-                    jadwalInfo.innerHTML = '<i class="fas fa-check-circle"></i> <strong>Jadwal tersedia!</strong> Silakan lanjutkan.';
-                    submitBtn.disabled = false;
-                    timeGapWarning.style.display = 'none';
-                }
-            } else {
-                jadwalInfo.style.display = 'none';
-                timeGapWarning.style.display = 'none';
-                submitBtn.disabled = false;
-            }
-        }
-        
-        // Event listeners
-        tanggalInput.addEventListener('change', cekDuplikasi);
-        waktuInput.addEventListener('change', cekDuplikasi);
-        tempatInput.addEventListener('input', cekDuplikasi);
-        pemateriInput.addEventListener('input', cekDuplikasi);
-        
-        // Search functionality
-        document.getElementById('searchTable').addEventListener('keyup', filterTable);
-        document.getElementById('filterTempat').addEventListener('change', filterTable);
-        
-        function filterTable() {
-            let searchText = document.getElementById('searchTable').value.toLowerCase();
-            let filterTempat = document.getElementById('filterTempat').value;
-            let rows = document.querySelectorAll('#kajianTable tbody tr');
-            
-            for (let row of rows) {
-                let judul = row.cells[1]?.textContent.toLowerCase() || '';
-                let pemateri = row.cells[2]?.textContent.toLowerCase() || '';
-                let tempat = row.getAttribute('data-tempat') || '';
-                
-                let matchSearch = judul.includes(searchText) || pemateri.includes(searchText);
-                let matchTempat = filterTempat === '' || tempat === filterTempat;
-                
-                row.style.display = (matchSearch && matchTempat) ? '' : 'none';
-            }
-        }
-        
-        // Deteksi konflik manual
-        function deteksiKonflik() {
-            let conflicts = [];
-            let rows = document.querySelectorAll('#kajianTable tbody tr');
-            let jadwalArray = [];
-            
-            // Kumpulkan data
-            rows.forEach(row => {
-                jadwalArray.push({
-                    id: row.cells[0]?.textContent,
-                    judul: row.cells[1]?.textContent,
-                    pemateri: row.cells[2]?.textContent,
-                    tanggal: row.getAttribute('data-tanggal'),
-                    waktu: row.getAttribute('data-waktu'),
-                    tempat: row.getAttribute('data-tempat')
-                });
-            });
-            
-            // Deteksi konflik
-            for (let i = 0; i < jadwalArray.length; i++) {
-                for (let j = i + 1; j < jadwalArray.length; j++) {
-                    if (jadwalArray[i].tanggal === jadwalArray[j].tanggal) {
-                        const waktu1 = new Date(`2000-01-01T${jadwalArray[i].waktu}`).getTime();
-                        const waktu2 = new Date(`2000-01-01T${jadwalArray[j].waktu}`).getTime();
-                        const selisih = Math.abs(waktu2 - waktu1) / (1000 * 60); // dalam menit
+                        <div class="form-group">
+                            <label for="waktu">Waktu *</label>
+                            <input type="time" id="waktu" name="waktu" required 
+                                   value="<?php echo date('H:i'); ?>">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tempat">Tempat *</label>
+                        <input type="text" id="tempat" name="tempat" required 
+                               placeholder="Contoh: Ruang Kelas 2 / Aula">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="deskripsi">Deskripsi Kajian</label>
+                        <textarea id="deskripsi" name="deskripsi" rows="4" 
+                                  placeholder="Masukkan deskripsi kajian, materi yang akan dibahas, atau catatan penting..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="link_video">Link Video (Opsional)</label>
+                        <input type="url" id="link_video" name="link_video" 
+                               placeholder="Contoh: https://youtube.com/watch?v=...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" onclick="closeModal('tambahModal')">Batal</button>
+                    <button type="submit" name="simpan" class="btn btn-success">
+                        <i class="fas fa-save"></i> Simpan Kajian
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Edit Kajian -->
+    <?php if ($edit_data): ?>
+    <div id="editModal" class="modal" style="display: block;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit"></i> Edit Kajian</h3>
+                <a href="kelola_kajian.php" class="close" style="text-decoration: none; color: white;">&times;</a>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="id" value="<?php echo $edit_data['id']; ?>">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="edit_judul">Judul Kajian *</label>
+                        <input type="text" id="edit_judul" name="judul" required 
+                               value="<?php echo htmlspecialchars($edit_data['judul']); ?>">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_pemateri">Pemateri *</label>
+                        <input type="text" id="edit_pemateri" name="pemateri" required 
+                               value="<?php echo htmlspecialchars($edit_data['pemateri']); ?>">
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit_tanggal">Tanggal *</label>
+                            <input type="date" id="edit_tanggal" name="tanggal" required 
+                                   value="<?php echo $edit_data['tanggal']; ?>">
+                        </div>
                         
-                        if (selisih < 120) {
-                            const jam = Math.floor(selisih / 60);
-                            const menit = selisih % 60;
-                            conflicts.push(
-                                `• "${jadwalArray[i].judul}" (${jadwalArray[i].waktu}) dan "${jadwalArray[j].judul}" (${jadwalArray[j].waktu})\n` +
-                                `  Jarak: ${jam} jam ${menit} menit (minimal 2 jam)`
-                            );
-                        }
-                    }
-                }
-            }
+                        <div class="form-group">
+                            <label for="edit_waktu">Waktu *</label>
+                            <input type="time" id="edit_waktu" name="waktu" required 
+                                   value="<?php echo $edit_data['waktu']; ?>">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_tempat">Tempat *</label>
+                        <input type="text" id="edit_tempat" name="tempat" required 
+                               value="<?php echo htmlspecialchars($edit_data['tempat']); ?>">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_deskripsi">Deskripsi Kajian</label>
+                        <textarea id="edit_deskripsi" name="deskripsi" rows="4"><?php echo htmlspecialchars($edit_data['deskripsi']); ?></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_link_video">Link Video (Opsional)</label>
+                        <input type="url" id="edit_link_video" name="link_video" 
+                               value="<?php echo htmlspecialchars($edit_data['link_video'] ?? ''); ?>">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="kelola_kajian.php" class="btn btn-danger">Batal</a>
+                    <button type="submit" name="update" class="btn btn-success">
+                        <i class="fas fa-save"></i> Update Kajian
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <script>
+        function openTambahModal() {
+            document.getElementById('tambahModal').style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Tutup modal jika klik di luar modal
+        window.onclick = function(event) {
+            const tambahModal = document.getElementById('tambahModal');
+            const editModal = document.getElementById('editModal');
             
-            if (conflicts.length > 0) {
-                alert('KONFLIK JADWAL TERDETEKSI:\n\n' + conflicts.join('\n\n'));
-            } else {
-                alert('✅ Tidak ada konflik jadwal. Semua jadwal memiliki jarak minimal 2 jam.');
+            if (event.target == tambahModal) {
+                tambahModal.style.display = 'none';
+            }
+            if (event.target == editModal) {
+                window.location.href = 'kelola_kajian.php';
             }
         }
-        
-        // Form validation before submit
-        formKajian.addEventListener('submit', function(e) {
-            if (submitBtn.disabled) {
-                e.preventDefault();
-                alert('❌ TIDAK DAPAT MENYIMPAN: Jadwal bentrok dengan kajian lain! Pastikan jarak minimal 2 jam dari kajian lain.');
-            }
-        });
-        
-        // Set minimal date
-        tanggalInput.setAttribute('min', new Date().toISOString().split('T')[0]);
-        
-        // Initial check for edit mode
-        <?php if ($edit_data): ?>
-        window.addEventListener('load', function() {
-            setTimeout(cekDuplikasi, 500);
-        });
-        <?php endif; ?>
     </script>
 </body>
 </html>
