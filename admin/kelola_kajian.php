@@ -16,9 +16,9 @@ if (isset($_GET['hapus'])) {
  * CEK APAKAH USTADZ SUDAH MENGAJAR DI HARI YANG SAMA
  * Ini adalah aturan utama: 1 ustadz hanya boleh 1x mengajar per hari
  */
-function cekUstadzSudahMengajarHariIni($conn, $tanggal, $pemateri, $id = null) {
+function cekUstadzSudahMengajarHariIni($conn, $tanggal, $pemateri, $pemateri_id, $id = null) {
     $query = "SELECT id, judul, waktu, tempat FROM kajian 
-              WHERE tanggal = '$tanggal' AND pemateri = '$pemateri'";
+              WHERE tanggal = '$tanggal' AND (pemateri = '$pemateri' OR pemateri_id = '$pemateri_id')";
     
     if ($id) {
         $query .= " AND id != '$id'";
@@ -57,7 +57,19 @@ function cekTempatDigunakanWaktuSama($conn, $tanggal, $waktu, $tempat, $id = nul
 // Handle Tambah/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = mysqli_real_escape_string($conn, $_POST['judul']);
-    $pemateri = mysqli_real_escape_string($conn, $_POST['pemateri']);
+    $pemateri_id = mysqli_real_escape_string($conn, $_POST['pemateri_id']);
+    
+    // Ambil data pemateri dari tabel users berdasarkan ID
+    $user_query = "SELECT id, username, nama_lengkap FROM users WHERE id = '$pemateri_id' AND role = 'pembina'";
+    $user_result = mysqli_query($conn, $user_query);
+    $user_data = mysqli_fetch_assoc($user_result);
+    
+    if ($user_data) {
+        $pemateri = $user_data['nama_lengkap']; // Simpan nama lengkap ke field pemateri
+    } else {
+        $errors[] = "Pembina tidak valid!";
+    }
+    
     $tanggal = mysqli_real_escape_string($conn, $_POST['tanggal']);
     $waktu = mysqli_real_escape_string($conn, $_POST['waktu']);
     $tempat = mysqli_real_escape_string($conn, $_POST['tempat']);
@@ -70,14 +82,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $errors[] = "Tanggal kajian tidak boleh kurang dari hari ini!";
     }
     
-    if (empty($judul) || empty($pemateri) || empty($tanggal) || empty($waktu) || empty($tempat)) {
+    if (empty($judul) || empty($pemateri_id) || empty($tanggal) || empty($waktu) || empty($tempat)) {
         $errors[] = "Semua field wajib diisi!";
     }
     
     $id = $_POST['id'] ?? null;
     
     // VALIDASI UTAMA: Cek apakah ustadz sudah mengajar di hari yang sama
-    $jadwal_ustadz = cekUstadzSudahMengajarHariIni($conn, $tanggal, $pemateri, $id);
+    $jadwal_ustadz = cekUstadzSudahMengajarHariIni($conn, $tanggal, $pemateri, $pemateri_id, $id);
     if ($jadwal_ustadz) {
         $errors[] = "Ustadz {$pemateri} sudah memiliki jadwal kajian '{$jadwal_ustadz['judul']}' pada hari yang sama pukul " . 
                     date('H:i', strtotime($jadwal_ustadz['waktu'])) . " di {$jadwal_ustadz['tempat']}. " .
@@ -85,7 +97,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     
     // VALIDASI: Cek apakah tempat sudah digunakan di waktu yang SAMA PERSIS
-    // (Ini tetap diperlukan karena tidak mungkin 2 kajian di tempat sama di waktu sama)
     $tempat_dipakai = cekTempatDigunakanWaktuSama($conn, $tanggal, $waktu, $tempat, $id);
     if ($tempat_dipakai) {
         $errors[] = "Tempat {$tempat} sudah digunakan untuk kajian '{$tempat_dipakai['judul']}' pada jam yang sama!";
@@ -99,6 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $query = "UPDATE kajian SET 
                       judul='$judul', 
                       pemateri='$pemateri',
+                      pemateri_id='$pemateri_id',
                       tanggal='$tanggal',
                       waktu='$waktu',
                       tempat='$tempat',
@@ -113,8 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         } else {
             // Mode Tambah
-            $query = "INSERT INTO kajian (judul, pemateri, tanggal, waktu, tempat, deskripsi, created_by) 
-                      VALUES ('$judul', '$pemateri', '$tanggal', '$waktu', '$tempat', '$deskripsi', '{$_SESSION['user_id']}')";
+            $query = "INSERT INTO kajian (judul, pemateri, pemateri_id, tanggal, waktu, tempat, deskripsi, created_by) 
+                      VALUES ('$judul', '$pemateri', '$pemateri_id', '$tanggal', '$waktu', '$tempat', '$deskripsi', '{$_SESSION['user_id']}')";
             
             if (mysqli_query($conn, $query)) {
                 $_SESSION['success_message'] = "Data kajian berhasil ditambahkan!";
@@ -133,6 +145,14 @@ if (isset($_GET['edit'])) {
     $result = mysqli_query($conn, "SELECT * FROM kajian WHERE id='$id'");
     $edit_data = mysqli_fetch_assoc($result);
 }
+
+// Ambil daftar user untuk dropdown pemateri (hanya role pembina)
+// HAPUS email dan no_telepon karena kolom tersebut tidak ada
+$user_query = "SELECT id, username, nama_lengkap FROM users WHERE role = 'pembina' ORDER BY nama_lengkap";
+$user_result = mysqli_query($conn, $user_query);
+
+// Hitung total pembina
+$total_pembina = mysqli_num_rows($user_result);
 
 // Tampilkan pesan sukses
 $success_message = '';
@@ -301,6 +321,92 @@ if (isset($_SESSION['success_message'])) {
             width: 20px;
             color: #667eea;
         }
+        
+        .ustadz-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+        
+        .ustadz-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 5px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .ustadz-info i {
+            color: #667eea;
+        }
+        
+        select.form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background-color: white;
+            cursor: pointer;
+        }
+        
+        select.form-control:focus {
+            border-color: #667eea;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        select.form-control option {
+            padding: 10px;
+        }
+        
+        .pembina-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .pembina-card i {
+            font-size: 2rem;
+        }
+        
+        .pembina-card .info {
+            flex: 1;
+        }
+        
+        .pembina-card .info h3 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+        
+        .pembina-card .info p {
+            margin: 5px 0 0;
+            opacity: 0.9;
+        }
+        
+        .pembina-stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        
+        .stat-item {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 15px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -335,6 +441,19 @@ if (isset($_SESSION['success_message'])) {
             <?php endif; ?>
         </div>
 
+        <!-- Pembina Info Card -->
+        <div class="pembina-card">
+            <i class="fas fa-users"></i>
+            <div class="info">
+                <h3>Data Pembina Tersedia</h3>
+                <p>Total <?php echo $total_pembina; ?> pembina terdaftar dalam sistem</p>
+                <div class="pembina-stats">
+                    <span class="stat-item"><i class="fas fa-check-circle"></i> Aktif</span>
+                    <span class="stat-item"><i class="fas fa-calendar-check"></i> Siap mengajar</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Rule Card - Penjelasan Sistem -->
         <div class="rule-card">
             <h4><i class="fas fa-gavel"></i> ATURAN JADWAL KAJIAN MAKN ENDE</h4>
@@ -354,8 +473,8 @@ if (isset($_SESSION['success_message'])) {
                     <i class="fas fa-times"></i>
                 </div>
                 <div>
-                    <strong>✗ Ustadz TIDAK BOLEH mengajar 2 kali dalam sehari</strong>
-                    <p style="margin: 5px 0 0; color: #666; font-size: 0.9rem;">Walau di tempat berbeda, satu ustadz hanya bisa 1 jadwal per hari</p>
+                    <strong>✗ Pembina TIDAK BOLEH mengajar 2 kali dalam sehari</strong>
+                    <p style="margin: 5px 0 0; color: #666; font-size: 0.9rem;">Walau di tempat berbeda, satu pembina hanya bisa 1 jadwal per hari</p>
                 </div>
             </div>
             
@@ -431,10 +550,52 @@ if (isset($_SESSION['success_message'])) {
             </div>
             
             <div class="form-group">
-                <label><i class="fas fa-user-tie"></i> Pemateri / Ustadz</label>
-                <input type="text" name="pemateri" id="pemateri" value="<?php echo $edit_data['pemateri'] ?? ''; ?>" placeholder="Contoh: Ustadz Ahmad" required>
+                <label><i class="fas fa-user-tie"></i> Pilih Pembina / Ustadz</label>
+                <select name="pemateri_id" id="pemateri_id" class="form-control" required>
+                    <option value="">-- Pilih Pembina --</option>
+                    <?php 
+                    // Reset pointer result
+                    mysqli_data_seek($user_result, 0);
+                    while ($user = mysqli_fetch_assoc($user_result)): 
+                        $selected = '';
+                        if ($edit_data && $edit_data['pemateri_id'] == $user['id']) {
+                            $selected = 'selected';
+                        }
+                    ?>
+                        <option value="<?php echo $user['id']; ?>" 
+                                data-nama="<?php echo htmlspecialchars($user['nama_lengkap']); ?>"
+                                data-username="<?php echo htmlspecialchars($user['username']); ?>"
+                                <?php echo $selected; ?>>
+                            <?php echo htmlspecialchars($user['nama_lengkap']); ?> 
+                            (<?php echo htmlspecialchars($user['username']); ?>)
+                        </option>
+                    <?php endwhile; ?>
+                    
+                    <?php if ($total_pembina == 0): ?>
+                        <option value="" disabled>⚠️ Belum ada pembina terdaftar</option>
+                    <?php endif; ?>
+                </select>
+                
+                <!-- Info pembina yang dipilih -->
+                <div id="pembinaDetail" style="display: none; margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                        <i class="fas fa-user-circle" style="font-size: 2rem; color: #667eea;"></i>
+                        <div>
+                            <strong id="selectedNama" style="font-size: 1.1rem;"></strong><br>
+                            <span id="selectedUsername" style="color: #666;"></span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; color: #28a745;">
+                        <i class="fas fa-check-circle"></i> Pembina tersedia untuk mengajar
+                    </div>
+                </div>
+                
+                <div class="ustadz-info">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Pilih pembina yang akan mengisi kajian. Data pembina diambil dari database users dengan role pembina.</span>
+                </div>
                 <small style="color: #dc3545; margin-top: 5px; display: block;">
-                    <i class="fas fa-exclamation-circle"></i> Penting: Satu ustadz hanya boleh mengajar SATU KALI dalam sehari!
+                    <i class="fas fa-exclamation-circle"></i> Penting: Satu pembina hanya boleh mengajar SATU KALI dalam sehari!
                 </small>
             </div>
             
@@ -483,7 +644,7 @@ if (isset($_SESSION['success_message'])) {
                     Daftar Kajian
                 </h3>
                 <div class="badge-info">
-                    <i class="fas fa-shield-alt"></i> 1 Ustadz = 1x Sehari
+                    <i class="fas fa-shield-alt"></i> 1 Pembina = 1x Sehari
                 </div>
             </div>
             
@@ -503,7 +664,7 @@ if (isset($_SESSION['success_message'])) {
                     ?>
                 </select>
                 <select id="filterUstadz" style="padding: 12px 25px; border: 2px solid #e0e0e0; border-radius: 50px; background: white;">
-                    <option value="">Semua Ustadz</option>
+                    <option value="">Semua Pembina</option>
                     <?php
                     $ustadz_query = "SELECT DISTINCT pemateri FROM kajian ORDER BY pemateri";
                     $ustadz_result = mysqli_query($conn, $ustadz_query);
@@ -520,7 +681,7 @@ if (isset($_SESSION['success_message'])) {
                         <tr>
                             <th>No</th>
                             <th>Judul</th>
-                            <th>Pemateri</th>
+                            <th>Pembina</th>
                             <th>Tanggal</th>
                             <th>Waktu</th>
                             <th>Tempat</th>
@@ -531,10 +692,13 @@ if (isset($_SESSION['success_message'])) {
                     </thead>
                     <tbody>
                         <?php
-                        // Query dengan JOIN untuk menampilkan pembuat
-                        $query = "SELECT k.*, u.nama_lengkap as pembuat 
+                        // Query dengan JOIN untuk menampilkan pembuat - HAPUS referensi ke email dan no_telepon
+                        $query = "SELECT k.*, u.nama_lengkap as pembuat,
+                                 up.nama_lengkap as nama_pemateri,
+                                 up.username as username_pemateri
                                  FROM kajian k 
                                  LEFT JOIN users u ON k.created_by = u.id 
+                                 LEFT JOIN users up ON k.pemateri_id = up.id
                                  ORDER BY k.tanggal DESC, k.waktu ASC";
                         $result = mysqli_query($conn, $query);
                         $no = 1;
@@ -569,7 +733,7 @@ if (isset($_SESSION['success_message'])) {
                             $row_class = '';
                             
                             if (isset($double_ustadz[$row['id']])) {
-                                $status = '<span style="color: red;"><i class="fas fa-exclamation-triangle"></i> Ustadz Double!</span>';
+                                $status = '<span style="color: red;"><i class="fas fa-exclamation-triangle"></i> Pembina Double!</span>';
                                 $row_class = 'conflict-row';
                             }
                             
@@ -581,7 +745,12 @@ if (isset($_SESSION['success_message'])) {
                                       class='$row_class'>";
                             echo "<td>" . $no++ . "</td>";
                             echo "<td><strong>" . htmlspecialchars($row['judul']) . "</strong></td>";
-                            echo "<td>" . htmlspecialchars($row['pemateri']) . "</td>";
+                            echo "<td>
+                                    " . htmlspecialchars($row['pemateri']) . "
+                                    <span class='ustadz-badge' title='Username: " . ($row['username_pemateri'] ?? '') . "'>
+                                        <i class='fas fa-user-check'></i> Pembina
+                                    </span>
+                                  </td>";
                             echo "<td>" . date('d/m/Y', strtotime($row['tanggal'])) . "</td>";
                             echo "<td>" . $row['waktu'] . " WIB</td>";
                             echo "<td>" . htmlspecialchars($row['tempat']) . "</td>";
@@ -610,14 +779,14 @@ if (isset($_SESSION['success_message'])) {
                         <strong style="font-size: 1.1rem;">Ringkasan Aturan:</strong>
                         <ul style="margin-top: 8px; margin-left: 20px;">
                             <li>✅ Kajian di waktu yang sama diperbolehkan di TEMPAT BERBEDA</li>
-                            <li>❌ Seorang ustadz HANYA BOLEH MENGAJAR SATU KALI dalam sehari</li>
+                            <li>❌ Seorang pembina HANYA BOLEH MENGAJAR SATU KALI dalam sehari</li>
                             <li>❌ Satu tempat TIDAK BOLEH digunakan untuk dua kajian di JAM YANG SAMA PERSIS</li>
                         </ul>
                         <p style="margin-top: 10px; color: #666;">
                             <i class="fas fa-clock"></i> Total Kajian: <?php echo count($jadwal_list); ?> | 
                             <span style="color: <?php echo !empty($double_ustadz) ? 'red' : 'green'; ?>;">
                                 <i class="fas fa-<?php echo !empty($double_ustadz) ? 'exclamation-triangle' : 'check-circle'; ?>"></i> 
-                                <?php echo !empty($double_ustadz) ? count($double_ustadz) . " Jadwal dengan ustadz double" : "Tidak ada ustadz yang double"; ?>
+                                <?php echo !empty($double_ustadz) ? count($double_ustadz) . " Jadwal dengan pembina double" : "Tidak ada pembina yang double"; ?>
                             </span>
                         </p>
                     </div>
@@ -627,26 +796,48 @@ if (isset($_SESSION['success_message'])) {
     </div>
 
     <script>
+        // Data jadwal dari PHP
+        const jadwalList = <?php echo json_encode($jadwal_list ?? []); ?>;
+        const editId = <?php echo $edit_data['id'] ?? 'null'; ?>;
+        
+        // Tampilkan detail pembina saat dipilih
+        document.getElementById('pemateri_id').addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const pembinaDetail = document.getElementById('pembinaDetail');
+            
+            if (selectedOption && selectedOption.value) {
+                const nama = selectedOption.getAttribute('data-nama');
+                const username = selectedOption.getAttribute('data-username');
+                
+                document.getElementById('selectedNama').textContent = nama;
+                document.getElementById('selectedUsername').textContent = '@' + username;
+                
+                pembinaDetail.style.display = 'block';
+            } else {
+                pembinaDetail.style.display = 'none';
+            }
+            
+            // Trigger validasi ulang
+            cekValidasi();
+        });
+
         // Real-time validation
         const tanggalInput = document.getElementById('tanggal');
         const waktuInput = document.getElementById('waktu');
         const tempatInput = document.getElementById('tempat');
-        const pemateriInput = document.getElementById('pemateri');
+        const pemateriSelect = document.getElementById('pemateri_id');
         const jadwalInfo = document.getElementById('jadwalInfo');
         const submitBtn = document.getElementById('submitBtn');
         const formKajian = document.getElementById('formKajian');
-        
-        // Data jadwal dari PHP
-        const jadwalList = <?php echo json_encode($jadwal_list ?? []); ?>;
-        const editId = <?php echo $edit_data['id'] ?? 'null'; ?>;
         
         function cekValidasi() {
             const tanggal = tanggalInput.value;
             const waktu = waktuInput.value;
             const tempat = tempatInput.value;
-            const pemateri = pemateriInput.value;
+            const pemateriId = pemateriSelect.value;
+            const pemateriNama = pemateriSelect.selectedOptions[0]?.getAttribute('data-nama') || '';
             
-            if (tanggal && waktu && tempat && pemateri) {
+            if (tanggal && waktu && tempat && pemateriId) {
                 let errors = [];
                 let isBlocked = false;
                 
@@ -655,14 +846,14 @@ if (isset($_SESSION['success_message'])) {
                     if (j.id == editId) continue; // Skip data sendiri
                     
                     // Cek apakah ustadz sudah mengajar di hari yang sama (ATURAN UTAMA)
-                    if (j.tanggal === tanggal && j.pemateri.toLowerCase() === pemateri.toLowerCase()) {
-                        errors.push(`❌ Ustadz "${pemateri}" SUDAH MENGAJAR pada hari yang sama pukul ${j.waktu} di ${j.tempat} dengan judul "${j.judul}". Satu ustadz hanya boleh 1x sehari!`);
+                    if (j.tanggal === tanggal && (j.pemateri.toLowerCase() === pemateriNama.toLowerCase() || j.pemateri_id == pemateriId)) {
+                        errors.push(`❌ Pembina "${pemateriNama}" SUDAH MENGAJAR pada hari yang sama pukul ${j.waktu} di ${j.tempat} dengan judul "${j.judul}". Satu pembina hanya boleh 1x sehari!`);
                         isBlocked = true;
                     }
                     
                     // Cek apakah tempat digunakan di waktu yang SAMA PERSIS
                     if (j.tanggal === tanggal && j.waktu === waktu && j.tempat.toLowerCase() === tempat.toLowerCase()) {
-                        errors.push(`❌ Tempat "${tempat}" SUDAH DIGUNAKAN pada jam yang sama untuk kajian "${j.judul}" dengan ustadz ${j.pemateri}`);
+                        errors.push(`❌ Tempat "${tempat}" SUDAH DIGUNAKAN pada jam yang sama untuk kajian "${j.judul}" dengan pembina ${j.pemateri}`);
                         isBlocked = true;
                     }
                 }
@@ -682,14 +873,14 @@ if (isset($_SESSION['success_message'])) {
                     for (let j of jadwalList) {
                         if (j.id == editId) continue;
                         if (j.tanggal === tanggal && j.waktu === waktu) {
-                            kajianBersamaan.push(`"${j.judul}" di ${j.tempat} (Ustadz ${j.pemateri})`);
+                            kajianBersamaan.push(`"${j.judul}" di ${j.tempat} (Pembina ${j.pemateri})`);
                         }
                     }
                     
                     if (kajianBersamaan.length > 0) {
                         jadwalInfo.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Informasi:</strong> Ada kajian lain di waktu yang sama:<br>' + 
                                               kajianBersamaan.join('<br>') + '<br><br>' +
-                                              '<span style="color: #28a745;">✅ Namun ini DIIZINKAN karena ustadz berbeda dan tempat berbeda.</span>';
+                                              '<span style="color: #28a745;">✅ Namun ini DIIZINKAN karena pembina berbeda dan tempat berbeda.</span>';
                     } else {
                         jadwalInfo.innerHTML = '<i class="fas fa-check-circle"></i> <strong>Jadwal tersedia!</strong> Silakan lanjutkan.';
                     }
@@ -706,7 +897,7 @@ if (isset($_SESSION['success_message'])) {
         tanggalInput.addEventListener('change', cekValidasi);
         waktuInput.addEventListener('change', cekValidasi);
         tempatInput.addEventListener('input', cekValidasi);
-        pemateriInput.addEventListener('input', cekValidasi);
+        pemateriSelect.addEventListener('change', cekValidasi);
         
         // Search and filter functionality
         document.getElementById('searchTable').addEventListener('keyup', filterTable);
@@ -737,7 +928,7 @@ if (isset($_SESSION['success_message'])) {
         formKajian.addEventListener('submit', function(e) {
             if (submitBtn.disabled) {
                 e.preventDefault();
-                alert('❌ TIDAK DAPAT MENYIMPAN: Aturan dilanggar!\n\n1. Ustadz hanya boleh mengajar SATU KALI dalam sehari\n2. Satu tempat tidak boleh dipakai di jam yang sama');
+                alert('❌ TIDAK DAPAT MENYIMPAN: Aturan dilanggar!\n\n1. Pembina hanya boleh mengajar SATU KALI dalam sehari\n2. Satu tempat tidak boleh dipakai di jam yang sama');
             }
         });
         
@@ -748,8 +939,21 @@ if (isset($_SESSION['success_message'])) {
         <?php if ($edit_data): ?>
         window.addEventListener('load', function() {
             setTimeout(cekValidasi, 500);
+            // Trigger change event on select to show pembina details
+            const event = new Event('change');
+            document.getElementById('pemateri_id').dispatchEvent(event);
         });
         <?php endif; ?>
+        
+        // Auto-hide success message after 5 seconds
+        setTimeout(function() {
+            const alert = document.querySelector('.alert-success');
+            if (alert) {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            }
+        }, 5000);
     </script>
 </body>
 </html>
