@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['simpan'])) {
     }
 }
 
-// Proses edit kajian
+// Proses edit kajian - SEMUA BISA DIEDIT
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update'])) {
     $id = $_POST['id'];
     $judul = mysqli_real_escape_string($conn, $_POST['judul']);
@@ -38,9 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update'])) {
     $tempat = mysqli_real_escape_string($conn, $_POST['tempat']);
     $deskripsi = mysqli_real_escape_string($conn, $_POST['deskripsi']);
     $link_video = mysqli_real_escape_string($conn, $_POST['link_video']);
-    $created_by = $_SESSION['user_id'];
     
-    // Pastikan hanya bisa mengedit milik sendiri
+    // Hapus kondisi created_by - SEMUA BISA DIEDIT
     $query = "UPDATE kajian SET 
               judul = '$judul', 
               pemateri = '$pemateri', 
@@ -49,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update'])) {
               tempat = '$tempat', 
               deskripsi = '$deskripsi', 
               link_video = '$link_video' 
-              WHERE id = $id AND created_by = $created_by";
+              WHERE id = $id";
     
     if (mysqli_query($conn, $query)) {
         $success_message = "Kajian berhasil diperbarui!";
@@ -58,13 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update'])) {
     }
 }
 
-// Proses hapus kajian
+// Proses hapus kajian - SEMUA BISA DIHAPUS
 if (isset($_GET['hapus'])) {
     $id = $_GET['hapus'];
-    $created_by = $_SESSION['user_id'];
     
-    // Pastikan hanya bisa menghapus milik sendiri
-    $query = "DELETE FROM kajian WHERE id = $id AND created_by = $created_by";
+    // Hapus kondisi created_by - SEMUA BISA DIHAPUS
+    $query = "DELETE FROM kajian WHERE id = $id";
     
     if (mysqli_query($conn, $query)) {
         $success_message = "Kajian berhasil dihapus!";
@@ -73,37 +71,30 @@ if (isset($_GET['hapus'])) {
     }
 }
 
-// Ambil data kajian untuk diedit
+// Ambil data kajian untuk diedit - SEMUA BISA DIAMBIL
 $edit_data = null;
 if (isset($_GET['edit'])) {
     $id = $_GET['edit'];
-    $created_by = $_SESSION['user_id'];
-    $query = "SELECT * FROM kajian WHERE id = $id AND created_by = $created_by";
+    // Hapus kondisi created_by - SEMUA BISA DIAMBIL
+    $query = "SELECT * FROM kajian WHERE id = $id";
     $result = mysqli_query($conn, $query);
     if (mysqli_num_rows($result) > 0) {
         $edit_data = mysqli_fetch_assoc($result);
     } else {
-        $error_message = "Data kajian tidak ditemukan atau Anda tidak memiliki akses!";
+        $error_message = "Data kajian tidak ditemukan!";
     }
 }
 
-// ==================== PERBAIKAN UTAMA ====================
-// Ambil nama pembina dari session
-$nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '';
-
-// AMBIL SEMUA KAJIAN DENGAN PEMATERI YANG SESUAI DENGAN NAMA PEMBINA LOGIN
-// Menggunakan LIKE untuk mencocokkan nama pembina dengan kolom pemateri
+// AMBIL SEMUA KAJIAN (tanpa filter berdasarkan pemateri)
 $query = "SELECT k.*, u.nama_lengkap as pembuat 
           FROM kajian k 
           LEFT JOIN users u ON k.created_by = u.id 
-          WHERE k.pemateri LIKE '%$nama_pembina%' 
           ORDER BY k.tanggal DESC, k.waktu DESC";
 $result = mysqli_query($conn, $query);
 $total_kajian = mysqli_num_rows($result);
 
 // Nama pembina untuk ditampilkan di stats card
 $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : 'Pembina';
-// ==========================================================
 ?>
 
 <!DOCTYPE html>
@@ -601,7 +592,7 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
 
         <!-- Stats Card -->
         <div class="stats-card">
-            <h3><i class="fas fa-calendar-check"></i> Total Kajian Saya</h3>
+            <h3><i class="fas fa-calendar-check"></i> Total Semua Kajian</h3>
             <div class="number"><?php echo $total_kajian; ?></div>
             <div style="margin-top: 10px; font-size: 0.9rem; opacity: 0.9;">
                 <i class="fas fa-user"></i> <?php echo htmlspecialchars($display_nama_pembina); ?>
@@ -668,17 +659,14 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
                             </div>
                         </div>
                         <div class="kajian-footer">
-                            <?php if ($row['created_by'] == $_SESSION['user_id']): ?>
-                                <a href="?edit=<?php echo $row['id']; ?>" class="btn btn-warning btn-sm">
-                                    <i class="fas fa-edit"></i> Edit
-                                </a>
-                                <a href="?hapus=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" 
-                                   onclick="return confirm('Yakin ingin menghapus kajian ini?')">
-                                    <i class="fas fa-trash"></i> Hapus
-                                </a>
-                            <?php else: ?>
-                                <span class="badge badge-success" style="padding: 8px;">Kajian dari Admin (Hanya Bisa Dilihat)</span>
-                            <?php endif; ?>
+                            <!-- SEMUA KAJIAN BISA DIEDIT DAN DIHAPUS -->
+                            <a href="?edit=<?php echo $row['id']; ?>" class="btn btn-warning btn-sm">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <a href="?hapus=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" 
+                               onclick="return confirm('Yakin ingin menghapus kajian ini?')">
+                                <i class="fas fa-trash"></i> Hapus
+                            </a>
                         </div>
                     </div>
                 <?php endwhile; ?>
@@ -686,7 +674,7 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
                 <div class="empty-state">
                     <i class="fas fa-calendar-times"></i>
                     <h3>Belum Ada Kajian</h3>
-                    <p>Anda belum memiliki kajian. Klik tombol "Tambah Kajian Baru" untuk memulai.</p>
+                    <p>Belum ada kajian yang tersedia. Klik tombol "Tambah Kajian Baru" untuk memulai.</p>
                     <button class="btn btn-primary" onclick="openTambahModal()">
                         <i class="fas fa-plus"></i> Buat Kajian Sekarang
                     </button>

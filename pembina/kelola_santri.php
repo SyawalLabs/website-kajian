@@ -8,25 +8,13 @@ if (!isLoggedIn() || !isPembina()) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['simpan_kehadiran'])) {
         $kajian_id = $_POST['kajian_id'];
-        $santri_id = $_POST['santri_id'];
+        $nama_santri = $_POST['nama_santri'];
         $status = $_POST['status'];
-        $keterangan = $_POST['keterangan'];
+        $waktu_hadir = ($status == 'hadir' && isset($_POST['waktu_hadir'])) ? $_POST['waktu_hadir'] : null;
         
-        // Cek apakah sudah ada data kehadiran
-        $check = mysqli_prepare($conn, "SELECT id FROM kehadiran_santri WHERE kajian_id = ? AND santri_id = ?");
-        mysqli_stmt_bind_param($check, "ii", $kajian_id, $santri_id);
-        mysqli_stmt_execute($check);
-        $result = mysqli_stmt_get_result($check);
-        
-        if (mysqli_num_rows($result) > 0) {
-            // Update
-            $stmt = mysqli_prepare($conn, "UPDATE kehadiran_santri SET status = ?, keterangan = ? WHERE kajian_id = ? AND santri_id = ?");
-            mysqli_stmt_bind_param($stmt, "ssii", $status, $keterangan, $kajian_id, $santri_id);
-        } else {
-            // Insert
-            $stmt = mysqli_prepare($conn, "INSERT INTO kehadiran_santri (kajian_id, santri_id, status, keterangan) VALUES (?, ?, ?, ?)");
-            mysqli_stmt_bind_param($stmt, "iiss", $kajian_id, $santri_id, $status, $keterangan);
-        }
+        // Insert data kehadiran dengan nama santri (tanpa relasi ke tabel users)
+        $stmt = mysqli_prepare($conn, "INSERT INTO kehadiran_santri (kajian_id, nama_santri, status, waktu_hadir) VALUES (?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, "isss", $kajian_id, $nama_santri, $status, $waktu_hadir);
         
         if (mysqli_stmt_execute($stmt)) {
             $_SESSION['success'] = "Data kehadiran berhasil disimpan";
@@ -37,62 +25,87 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         header("Location: kelola_santri.php?kajian_id=" . $kajian_id);
         exit();
     }
+
+    // Proses khusus untuk form tidak hadir
+    if (isset($_POST['simpan_tidak_hadir'])) {
+        $kajian_id = $_POST['kajian_id'];
+        $nama_santri = $_POST['nama_santri'];
+        $waktu_tidak_hadir = $_POST['waktu_tidak_hadir'];
+        $status = 'tidak_hadir'; // Set status otomatis tidak hadir
+        
+        // Insert data kehadiran dengan nama santri (tanpa relasi ke tabel users)
+        $stmt = mysqli_prepare($conn, "INSERT INTO kehadiran_santri (kajian_id, nama_santri, status, keterangan) VALUES (?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, "isss", $kajian_id, $nama_santri, $status, $waktu_tidak_hadir);
+        
+        if (mysqli_stmt_execute($stmt)) {
+            $_SESSION['success'] = "Data santri tidak hadir berhasil disimpan";
+        } else {
+            $_SESSION['error'] = "Gagal menyimpan data santri tidak hadir";
+        }
+        
+        header("Location: kelola_santri.php?kajian_id=" . $kajian_id);
+        exit();
+    }
 }
 
 // Hapus data kehadiran
 if (isset($_GET['hapus'])) {
     $id = $_GET['hapus'];
+    $kajian_id = isset($_GET['kajian_id']) ? $_GET['kajian_id'] : '';
+    
     $stmt = mysqli_prepare($conn, "DELETE FROM kehadiran_santri WHERE id = ?");
     mysqli_stmt_bind_param($stmt, "i", $id);
     if (mysqli_stmt_execute($stmt)) {
         $_SESSION['success'] = "Data kehadiran berhasil dihapus";
     }
-    header("Location: kelola_santri.php" . (isset($_GET['kajian_id']) ? "?kajian_id=" . $_GET['kajian_id'] : ""));
+    header("Location: kelola_santri.php" . ($kajian_id ? "?kajian_id=" . $kajian_id : ""));
     exit();
 }
 
-// Ambil daftar kajian yang dibuat pembina
-$kajian_stmt = mysqli_prepare($conn, "SELECT * FROM kajian WHERE created_by = ? ORDER BY tanggal DESC");
-mysqli_stmt_bind_param($kajian_stmt, "i", $_SESSION['user_id']);
+// Ambil SEMUA kajian (tanpa filter created_by)
+$kajian_stmt = mysqli_prepare($conn, "SELECT k.*, u.nama_lengkap as pembina_nama 
+                                      FROM kajian k 
+                                      JOIN users u ON k.created_by = u.id 
+                                      ORDER BY k.tanggal DESC, k.waktu DESC");
 mysqli_stmt_execute($kajian_stmt);
 $daftar_kajian = mysqli_stmt_get_result($kajian_stmt);
+$total_kajian = mysqli_num_rows($daftar_kajian);
 
 // Ambil data kajian yang dipilih
 $selected_kajian = null;
 $data_kehadiran = [];
-$daftar_santri = [];
 
 if (isset($_GET['kajian_id'])) {
     $kajian_id = $_GET['kajian_id'];
     
-    // Ambil detail kajian
-    $kajian_detail = mysqli_prepare($conn, "SELECT * FROM kajian WHERE id = ? AND created_by = ?");
-    mysqli_stmt_bind_param($kajian_detail, "ii", $kajian_id, $_SESSION['user_id']);
+    // Ambil detail kajian (tanpa filter created_by)
+    $kajian_detail = mysqli_prepare($conn, "SELECT k.*, u.nama_lengkap as pembina_nama 
+                                           FROM kajian k 
+                                           JOIN users u ON k.created_by = u.id 
+                                           WHERE k.id = ?");
+    mysqli_stmt_bind_param($kajian_detail, "i", $kajian_id);
     mysqli_stmt_execute($kajian_detail);
     $selected_kajian = mysqli_stmt_get_result($kajian_detail)->fetch_assoc();
     
     if ($selected_kajian) {
-        // Ambil semua santri
-        $santri_query = "SELECT u.id, u.nama_lengkap, s.nis, s.kelas 
-                         FROM users u 
-                         LEFT JOIN santri s ON u.id = s.user_id 
-                         WHERE u.role = 'santri' 
-                         ORDER BY u.nama_lengkap";
-        $daftar_santri = mysqli_query($conn, $santri_query);
-        
-        // Ambil data kehadiran untuk kajian ini
+        // Ambil data kehadiran untuk kajian ini - TANPA ORDER BY
         $kehadiran_stmt = mysqli_prepare($conn, 
-            "SELECT ks.*, u.nama_lengkap, s.nis, s.kelas 
+            "SELECT ks.* 
              FROM kehadiran_santri ks 
-             JOIN users u ON ks.santri_id = u.id 
-             LEFT JOIN santri s ON u.id = s.user_id 
-             WHERE ks.kajian_id = ? 
-             ORDER BY ks.status, u.nama_lengkap");
+             WHERE ks.kajian_id = ?");
         mysqli_stmt_bind_param($kehadiran_stmt, "i", $kajian_id);
         mysqli_stmt_execute($kehadiran_stmt);
         $data_kehadiran = mysqli_stmt_get_result($kehadiran_stmt);
+    } else {
+        // Jika kajian tidak ditemukan
+        $_SESSION['error'] = "Kajian tidak ditemukan";
+        header("Location: kelola_santri.php");
+        exit();
     }
 }
+
+// Nama pembina untuk ditampilkan
+$display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : 'Pembina';
 ?>
 
 <!DOCTYPE html>
@@ -119,27 +132,48 @@ if (isset($_GET['kajian_id'])) {
             background: #343a40;
             color: white;
             padding: 15px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
         .navbar .container {
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .navbar ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
+        .navbar-brand {
             display: flex;
+            align-items: center;
+            gap: 15px;
         }
-        .navbar ul li {
-            margin-left: 20px;
+        .navbar-logo i {
+            font-size: 2rem;
+            color: #ffc107;
         }
-        .navbar ul li a {
+        .navbar h1 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+        .navbar h1 span {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        .navbar-menu {
+            display: flex;
+            gap: 20px;
+        }
+        .navbar-menu a {
             color: white;
             text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
-        .navbar ul li a:hover {
-            color: #007bff;
+        .navbar-menu a:hover, .navbar-menu a.active {
+            background: #007bff;
         }
 
         .main-container {
@@ -149,18 +183,86 @@ if (isset($_GET['kajian_id'])) {
         }
 
         .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 20px;
         }
 
         .page-header h2 {
             font-size: 2rem;
             color: #1e3c72;
-            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .page-header h2 i {
+            color: #2a5298;
         }
 
         .page-header p {
             color: #666;
             font-size: 1rem;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: white;
+            padding: 5px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .search-box input {
+            border: none;
+            padding: 10px 15px;
+            width: 250px;
+            font-size: 0.95rem;
+        }
+
+        .search-box input:focus {
+            outline: none;
+        }
+
+        .search-box button {
+            background: #1e3c72;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .search-box button:hover {
+            background: #2a5298;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            display: inline-block;
+            min-width: 250px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .stats-card h3 {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .stats-card .number {
+            font-size: 2.5rem;
+            font-weight: bold;
         }
 
         .kajian-selector {
@@ -175,12 +277,18 @@ if (isset($_GET['kajian_id'])) {
             margin-bottom: 20px;
             color: #1e3c72;
             font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .kajian-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
             gap: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 5px;
         }
 
         .kajian-card {
@@ -191,6 +299,7 @@ if (isset($_GET['kajian_id'])) {
             color: inherit;
             transition: all 0.3s;
             border: 2px solid transparent;
+            position: relative;
         }
 
         .kajian-card:hover {
@@ -222,6 +331,15 @@ if (isset($_GET['kajian_id'])) {
         .kajian-card .info i {
             margin-right: 5px;
             color: #1e3c72;
+        }
+
+        .kajian-card .pembina-info {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #28a745;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
         .alert {
@@ -263,6 +381,15 @@ if (isset($_GET['kajian_id'])) {
         .kajian-info h3 {
             font-size: 1.8rem;
             margin-bottom: 15px;
+        }
+
+        .kajian-info .pembina-info {
+            background: rgba(255,255,255,0.2);
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-bottom: 15px;
+            font-size: 0.95rem;
         }
 
         .kajian-info-detail {
@@ -391,9 +518,77 @@ if (isset($_GET['kajian_id'])) {
             transform: translateY(-2px);
         }
 
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+            transform: translateY(-2px);
+        }
+
         .btn-sm {
             padding: 5px 10px;
             font-size: 0.85rem;
+        }
+
+        .form-tidak-hadir {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #dee2e6;
+        }
+
+        .form-tidak-hadir h4 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-tidak-hadir h4 i {
+            color: #dc3545;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #1e3c72;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30,60,114,0.1);
         }
 
         .modal {
@@ -423,11 +618,16 @@ if (isset($_GET['kajian_id'])) {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border-radius: 15px 15px 0 0;
         }
 
         .modal-header h3 {
-            color: #1e3c72;
             font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .modal-header .close {
@@ -435,7 +635,12 @@ if (isset($_GET['kajian_id'])) {
             border: none;
             font-size: 1.5rem;
             cursor: pointer;
-            color: #666;
+            color: white;
+            opacity: 0.8;
+        }
+
+        .modal-header .close:hover {
+            opacity: 1;
         }
 
         .modal-body {
@@ -448,33 +653,6 @@ if (isset($_GET['kajian_id'])) {
             display: flex;
             justify-content: flex-end;
             gap: 10px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #1e3c72;
-            font-weight: 500;
-        }
-
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
-            font-size: 1rem;
-        }
-
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #1e3c72;
-            box-shadow: 0 0 0 3px rgba(30,60,114,0.1);
         }
 
         .action-buttons {
@@ -525,6 +703,44 @@ if (isset($_GET['kajian_id'])) {
             font-weight: bold;
             color: #1e3c72;
         }
+
+        .info-text {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .badge-info {
+            background: #17a2b8;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            display: inline-block;
+        }
+
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .search-box {
+                width: 100%;
+            }
+            
+            .search-box input {
+                width: 100%;
+            }
+            
+            .kajian-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -549,8 +765,14 @@ if (isset($_GET['kajian_id'])) {
 
     <div class="main-container">
         <div class="page-header">
-            <h2><i class="fas fa-users-cog"></i> Kelola Kehadiran Santri</h2>
-            <p>Catat dan pantau kehadiran santri dalam setiap kegiatan kajian</p>
+            <div>
+                <h2><i class="fas fa-users-cog"></i> Kelola Kehadiran Santri</h2>
+                <p>Catat dan pantau kehadiran santri dalam setiap kegiatan kajian</p>
+            </div>
+            <div class="search-box">
+                <input type="text" id="searchKajian" placeholder="Cari kajian...">
+                <button onclick="searchKajian()"><i class="fas fa-search"></i> Cari</button>
+            </div>
         </div>
 
         <?php if (isset($_SESSION['success'])): ?>
@@ -573,29 +795,60 @@ if (isset($_GET['kajian_id'])) {
             </div>
         <?php endif; ?>
 
-        <!-- Pilih Kajian -->
+        <!-- Stats Card -->
+        <div class="stats-card">
+            <h3><i class="fas fa-calendar-check"></i> Total Semua Kajian</h3>
+            <div class="number"><?php echo $total_kajian; ?></div>
+            <div style="margin-top: 10px; font-size: 0.9rem; opacity: 0.9;">
+                <i class="fas fa-user"></i> <?php echo htmlspecialchars($display_nama_pembina); ?>
+            </div>
+        </div>
+
+        <!-- Pilih Kajian (SEMUA KAJIAN) -->
         <div class="kajian-selector">
-            <h3><i class="fas fa-calendar-check"></i> Pilih Kajian</h3>
-            <div class="kajian-grid">
-                <?php if (mysqli_num_rows($daftar_kajian) > 0): ?>
-                    <?php while ($kajian = mysqli_fetch_assoc($daftar_kajian)): ?>
+            <h3>
+                <i class="fas fa-calendar-check"></i> 
+                Pilih Kajian
+                <?php if ($total_kajian > 0): ?>
+                    <span class="badge-info"><?php echo $total_kajian; ?> Kajian</span>
+                <?php endif; ?>
+            </h3>
+            
+            <?php if ($total_kajian > 0): ?>
+                <div class="kajian-grid" id="kajianGrid">
+                    <?php 
+                    // Reset pointer untuk menampilkan ulang daftar kajian
+                    mysqli_data_seek($daftar_kajian, 0);
+                    while ($kajian = mysqli_fetch_assoc($daftar_kajian)): 
+                        $is_my_kajian = ($kajian['created_by'] == $_SESSION['user_id']);
+                    ?>
                         <a href="?kajian_id=<?php echo $kajian['id']; ?>" 
-                           class="kajian-card <?php echo (isset($_GET['kajian_id']) && $_GET['kajian_id'] == $kajian['id']) ? 'active' : ''; ?>">
+                           class="kajian-card <?php echo (isset($_GET['kajian_id']) && $_GET['kajian_id'] == $kajian['id']) ? 'active' : ''; ?> <?php echo $is_my_kajian ? 'my-kajian' : ''; ?>">
                             <div class="judul"><?php echo htmlspecialchars($kajian['judul']); ?></div>
+                            
                             <div class="info">
                                 <span><i class="fas fa-calendar"></i> <?php echo date('d/m/Y', strtotime($kajian['tanggal'])); ?></span>
                                 <span><i class="fas fa-clock"></i> <?php echo htmlspecialchars($kajian['waktu']); ?></span>
+                            </div>
+                            <div class="info">
                                 <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($kajian['tempat']); ?></span>
+                            </div>
+                            <div class="pembina-info">
+                                <i class="fas fa-user-tie"></i> Pembina: <?php echo htmlspecialchars($kajian['pembina_nama']); ?>
                             </div>
                         </a>
                     <?php endwhile; ?>
-                <?php else: ?>
-                    <p style="grid-column: 1/-1; text-align: center; color: #666; padding: 20px;">
-                        <i class="fas fa-info-circle"></i> Anda belum membuat kajian. 
-                        <a href="kelola_kajian.php" style="color: #1e3c72; text-decoration: underline;">Buat kajian sekarang</a>
-                    </p>
-                <?php endif; ?>
-            </div>
+                </div>
+            <?php else: ?>
+                <div class="empty-state" style="padding: 30px;">
+                    <i class="fas fa-calendar-times"></i>
+                    <h4>Belum Ada Kajian</h4>
+                    <p>Silakan buat kajian terlebih dahulu di menu Kelola Kajian.</p>
+                    <a href="kelola_kajian.php" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Buat Kajian Baru
+                    </a>
+                </div>
+            <?php endif; ?>
         </div>
 
         <?php if ($selected_kajian): ?>
@@ -603,6 +856,13 @@ if (isset($_GET['kajian_id'])) {
             <div class="content-section">
                 <div class="kajian-info">
                     <h3><?php echo htmlspecialchars($selected_kajian['judul']); ?></h3>
+                    <div class="pembina-info">
+                        <i class="fas fa-user-tie"></i> 
+                        Pembina: <?php echo htmlspecialchars($selected_kajian['pembina_nama']); ?>
+                        <?php if ($selected_kajian['created_by'] == $_SESSION['user_id']): ?>
+                            <span class="badge badge-hadir" style="margin-left: 10px;">Kajian Saya</span>
+                        <?php endif; ?>
+                    </div>
                     <div class="kajian-info-detail">
                         <p><i class="fas fa-user"></i> Pemateri: <?php echo htmlspecialchars($selected_kajian['pemateri']); ?></p>
                         <p><i class="fas fa-calendar"></i> Tanggal: <?php echo date('d/m/Y', strtotime($selected_kajian['tanggal'])); ?></p>
@@ -611,11 +871,66 @@ if (isset($_GET['kajian_id'])) {
                     </div>
                 </div>
 
-                <!-- Tombol Tambah Kehadiran -->
-                <div style="margin-bottom: 20px;">
-                    <button class="btn btn-primary" onclick="openModal('tambah')">
+                <!-- FORM KHUSUS UNTUK SANTRI TIDAK HADIR (DENGAN INPUT NAMA BEBAS) -->
+                <div class="form-tidak-hadir">
+                    <h4>
+                        <i class="fas fa-user-times"></i>
+                        Form Input Santri Tidak Hadir - <?php echo htmlspecialchars($selected_kajian['judul']); ?>
+                    </h4>
+                    
+                    <form method="POST" onsubmit="return validasiFormTidakHadir()">
+                        <input type="hidden" name="kajian_id" value="<?php echo $kajian_id; ?>">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="nama_santri">
+                                    <i class="fas fa-user"></i> Nama Santri
+                                </label>
+                                <input type="text" name="nama_santri" id="nama_santri" 
+                                       placeholder="Masukkan nama santri..." required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="waktu_tidak_hadir">
+                                    <i class="fas fa-clock"></i> Waktu Tidak Hadir
+                                </label>
+                                <select name="waktu_tidak_hadir" id="waktu_tidak_hadir" required>
+                                    <option value="">-- Pilih Waktu --</option>
+                                    <option value="Awal Kajian">Awal Kajian (Sebelum dimulai)</option>
+                                    <option value="Tengah Kajian">Tengah Kajian (Saat berlangsung)</option>
+                                    <option value="Akhir Kajian">Akhir Kajian (Setelah selesai)</option>
+                                    <option value="Tidak Hadir Full">Tidak Hadir Full (Tidak datang)</option>
+                                </select>
+                                <div class="info-text">Kapan santri tidak hadir</div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button type="reset" class="btn btn-danger">
+                                <i class="fas fa-undo"></i> Reset
+                            </button>
+                            <button type="submit" name="simpan_tidak_hadir" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Simpan Data Tidak Hadir
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Tombol Tambah Kehadiran Lainnya (dengan input nama bebas) -->
+                <div style="margin-bottom: 20px; display: flex; gap: 10px; justify-content: space-between; align-items: center;">
+                    <button class="btn btn-success" onclick="openModal()">
                         <i class="fas fa-plus"></i> Tambah Data Kehadiran
                     </button>
+                    
+                    <div>
+                        <select id="filterStatus" onchange="filterByStatus(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #ced4da;">
+                            <option value="">Semua Status</option>
+                            <option value="hadir">Hadir</option>
+                            <option value="tidak_hadir">Tidak Hadir</option>
+                            <option value="izin">Izin</option>
+                            <option value="sakit">Sakit</option>
+                        </select>
+                    </div>
                 </div>
 
                 <?php 
@@ -643,7 +958,7 @@ if (isset($_GET['kajian_id'])) {
                 <div class="stats-summary">
                     <div class="stat-item">
                         <div class="label">Total Santri</div>
-                        <div class="value"><?php echo mysqli_num_rows($daftar_santri); ?></div>
+                        <div class="value"><?php echo mysqli_num_rows($data_kehadiran); ?></div>
                     </div>
                     <div class="stat-item">
                         <div class="label">Hadir</div>
@@ -665,15 +980,13 @@ if (isset($_GET['kajian_id'])) {
 
                 <!-- Tabel Kehadiran -->
                 <div class="table-responsive">
-                    <table class="table">
+                    <table class="table" id="kehadiranTable">
                         <thead>
                             <tr>
                                 <th>No</th>
                                 <th>Nama Santri</th>
-                                <th>NIS</th>
-                                <th>Kelas</th>
                                 <th>Status</th>
-                                <th>Keterangan</th>
+                                <th>Waktu Hadir / Keterangan</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
@@ -683,11 +996,9 @@ if (isset($_GET['kajian_id'])) {
                                 $no = 1;
                                 while ($kehadiran = mysqli_fetch_assoc($data_kehadiran)): 
                                 ?>
-                                <tr>
+                                <tr data-status="<?php echo $kehadiran['status']; ?>">
                                     <td><?php echo $no++; ?></td>
-                                    <td><?php echo htmlspecialchars($kehadiran['nama_lengkap']); ?></td>
-                                    <td><?php echo htmlspecialchars($kehadiran['nis'] ?? '-'); ?></td>
-                                    <td><?php echo htmlspecialchars($kehadiran['kelas'] ?? '-'); ?></td>
+                                    <td><?php echo htmlspecialchars($kehadiran['nama_santri']); ?></td>
                                     <td>
                                         <?php
                                         $badge_class = '';
@@ -715,11 +1026,18 @@ if (isset($_GET['kajian_id'])) {
                                             <?php echo $status_text; ?>
                                         </span>
                                     </td>
-                                    <td><?php echo htmlspecialchars($kehadiran['keterangan'] ?? '-'); ?></td>
+                                    <td>
+                                        <?php 
+                                        if ($kehadiran['status'] == 'hadir' && !empty($kehadiran['waktu_hadir'])) {
+                                            echo '<i class="fas fa-clock"></i> ' . htmlspecialchars($kehadiran['waktu_hadir']);
+                                        } elseif (!empty($kehadiran['keterangan'])) {
+                                            echo htmlspecialchars($kehadiran['keterangan']);
+                                        } else {
+                                            echo '-';
+                                        }
+                                        ?>
+                                    </td>
                                     <td class="action-buttons">
-                                        <button class="btn btn-warning btn-sm" onclick="editKehadiran(<?php echo $kehadiran['id']; ?>, '<?php echo $kehadiran['status']; ?>', '<?php echo htmlspecialchars(addslashes($kehadiran['keterangan'])); ?>')">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
                                         <a href="?kajian_id=<?php echo $kajian_id; ?>&hapus=<?php echo $kehadiran['id']; ?>" 
                                            class="btn btn-danger btn-sm" 
                                            onclick="return confirm('Yakin ingin menghapus data kehadiran ini?')">
@@ -730,11 +1048,11 @@ if (isset($_GET['kajian_id'])) {
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="7">
+                                    <td colspan="5">
                                         <div class="empty-state">
                                             <i class="fas fa-users"></i>
                                             <h4>Belum Ada Data Kehadiran</h4>
-                                            <p>Klik tombol "Tambah Data Kehadiran" untuk mencatat kehadiran santri</p>
+                                            <p>Gunakan form di atas untuk mencatat santri yang tidak hadir atau tombol Tambah Data Kehadiran untuk mencatat kehadiran lainnya</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -743,7 +1061,7 @@ if (isset($_GET['kajian_id'])) {
                     </table>
                 </div>
             </div>
-        <?php else: ?>
+        <?php elseif ($total_kajian > 0): ?>
             <div class="empty-state">
                 <i class="fas fa-hand-pointer"></i>
                 <h4>Pilih Kajian</h4>
@@ -752,41 +1070,26 @@ if (isset($_GET['kajian_id'])) {
         <?php endif; ?>
     </div>
 
-    <!-- Modal Tambah/Edit Kehadiran -->
+    <!-- Modal Tambah Kehadiran (dengan input nama bebas dan waktu hadir) -->
     <div id="kehadiranModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="modalTitle">Tambah Data Kehadiran</h3>
+                <h3 id="modalTitle"><i class="fas fa-plus-circle"></i> Tambah Data Kehadiran</h3>
                 <button class="close" onclick="closeModal()">&times;</button>
             </div>
             <form method="POST">
                 <div class="modal-body">
                     <input type="hidden" name="kajian_id" value="<?php echo $_GET['kajian_id'] ?? ''; ?>">
-                    <input type="hidden" name="santri_id" id="santri_id">
                     
                     <div class="form-group">
-                        <label for="santri_select">Pilih Santri</label>
-                        <select name="santri_id" id="santri_select" required>
-                            <option value="">-- Pilih Santri --</option>
-                            <?php 
-                            if (isset($daftar_santri) && mysqli_num_rows($daftar_santri) > 0) {
-                                mysqli_data_seek($daftar_santri, 0);
-                                while ($santri = mysqli_fetch_assoc($daftar_santri)): 
-                                ?>
-                                <option value="<?php echo $santri['id']; ?>">
-                                    <?php echo htmlspecialchars($santri['nama_lengkap']); ?> 
-                                    (<?php echo htmlspecialchars($santri['nis'] ?? 'NIS: -'); ?>)
-                                </option>
-                                <?php 
-                                endwhile;
-                            } 
-                            ?>
-                        </select>
+                        <label for="nama_santri_modal">Nama Santri</label>
+                        <input type="text" name="nama_santri" id="nama_santri_modal" 
+                               placeholder="Masukkan nama santri..." required>
                     </div>
                     
                     <div class="form-group">
-                        <label for="status">Status Kehadiran</label>
-                        <select name="status" id="status" required>
+                        <label for="status_modal">Status Kehadiran</label>
+                        <select name="status" id="status_modal" required onchange="toggleWaktuHadir()">
                             <option value="">-- Pilih Status --</option>
                             <option value="hadir">Hadir</option>
                             <option value="tidak_hadir">Tidak Hadir</option>
@@ -795,14 +1098,17 @@ if (isset($_GET['kajian_id'])) {
                         </select>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="keterangan">Keterangan (Opsional)</label>
-                        <textarea name="keterangan" id="keterangan" rows="3" placeholder="Masukkan keterangan tambahan..."></textarea>
+                    <div class="form-group" id="waktu_hadir_group" style="display: none;">
+                        <label for="waktu_hadir">Waktu Hadir (Format 24 Jam)</label>
+                        <input type="time" name="waktu_hadir" id="waktu_hadir" step="60">
+                        <div class="info-text">Masukkan jam kehadiran santri (format 24 jam)</div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-danger" onclick="closeModal()">Batal</button>
-                    <button type="submit" name="simpan_kehadiran" class="btn btn-success">Simpan</button>
+                    <button type="submit" name="simpan_kehadiran" class="btn btn-success">
+                        <i class="fas fa-save"></i> Simpan
+                    </button>
                 </div>
             </form>
         </div>
@@ -811,20 +1117,11 @@ if (isset($_GET['kajian_id'])) {
     <script>
         function openModal() {
             document.getElementById('kehadiranModal').style.display = 'block';
-            document.getElementById('modalTitle').textContent = 'Tambah Data Kehadiran';
-            document.getElementById('santri_id').value = '';
-            document.getElementById('santri_select').value = '';
-            document.getElementById('status').value = '';
-            document.getElementById('keterangan').value = '';
-        }
-
-        function editKehadiran(id, status, keterangan) {
-            document.getElementById('kehadiranModal').style.display = 'block';
-            document.getElementById('modalTitle').textContent = 'Edit Data Kehadiran';
-            document.getElementById('santri_id').value = id;
-            document.getElementById('santri_select').value = id;
-            document.getElementById('status').value = status;
-            document.getElementById('keterangan').value = keterangan;
+            document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus-circle"></i> Tambah Data Kehadiran';
+            document.getElementById('nama_santri_modal').value = '';
+            document.getElementById('status_modal').value = '';
+            document.getElementById('waktu_hadir').value = '';
+            document.getElementById('waktu_hadir_group').style.display = 'none';
         }
 
         function closeModal() {
@@ -838,6 +1135,96 @@ if (isset($_GET['kajian_id'])) {
                 modal.style.display = 'none';
             }
         }
+
+        // Toggle field waktu hadir berdasarkan status
+        function toggleWaktuHadir() {
+            const status = document.getElementById('status_modal').value;
+            const waktuHadirGroup = document.getElementById('waktu_hadir_group');
+            
+            if (status === 'hadir') {
+                waktuHadirGroup.style.display = 'block';
+                document.getElementById('waktu_hadir').required = true;
+            } else {
+                waktuHadirGroup.style.display = 'none';
+                document.getElementById('waktu_hadir').required = false;
+                document.getElementById('waktu_hadir').value = '';
+            }
+        }
+
+        // Validasi form tidak hadir
+        function validasiFormTidakHadir() {
+            const nama_santri = document.getElementById('nama_santri').value;
+            const waktu = document.getElementById('waktu_tidak_hadir').value;
+            
+            if (!nama_santri || !waktu) {
+                alert('Harap lengkapi semua field yang diperlukan!');
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Validasi form modal
+        document.querySelector('#kehadiranModal form').onsubmit = function() {
+            const nama_santri = document.getElementById('nama_santri_modal').value;
+            const status = document.getElementById('status_modal').value;
+            
+            if (!nama_santri || !status) {
+                alert('Harap lengkapi nama santri dan status kehadiran!');
+                return false;
+            }
+            
+            if (status === 'hadir') {
+                const waktuHadir = document.getElementById('waktu_hadir').value;
+                if (!waktuHadir) {
+                    alert('Harap isi waktu hadir untuk status Hadir!');
+                    return false;
+                }
+            }
+            
+            return true;
+        };
+
+        // Fungsi pencarian kajian
+        function searchKajian() {
+            const searchText = document.getElementById('searchKajian').value.toLowerCase();
+            const cards = document.querySelectorAll('.kajian-card');
+            
+            cards.forEach(card => {
+                const judul = card.querySelector('.judul').textContent.toLowerCase();
+                const pembina = card.querySelector('.pembina-info').textContent.toLowerCase();
+                const tempat = card.querySelector('.info').textContent.toLowerCase();
+                
+                if (judul.includes(searchText) || pembina.includes(searchText) || tempat.includes(searchText)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // Filter berdasarkan status
+        function filterByStatus(status) {
+            const rows = document.querySelectorAll('#kehadiranTable tbody tr');
+            
+            rows.forEach(row => {
+                if (row.cells.length > 1) { // Skip empty state row
+                    const rowStatus = row.getAttribute('data-status');
+                    if (!status || rowStatus === status) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        // Enter key untuk pencarian
+        document.getElementById('searchKajian').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchKajian();
+            }
+        });
     </script>
 </body>
 </html>

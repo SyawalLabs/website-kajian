@@ -242,28 +242,12 @@ $statistik = [
         }
 
         .section-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             margin-bottom: 20px;
         }
 
         .section-title h3 {
             color: #2c3e50;
             font-size: 1.3rem;
-        }
-
-        .btn-tambah {
-            background: #2ecc71;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            text-decoration: none;
-            transition: background 0.3s;
-        }
-
-        .btn-tambah:hover {
-            background: #27ae60;
         }
 
         table {
@@ -308,44 +292,6 @@ $statistik = [
         .badge-selesai {
             background: #95a5a6;
             color: white;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 5px;
-        }
-
-        .btn-edit, .btn-hapus, .btn-view {
-            padding: 6px 12px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: all 0.3s;
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .btn-edit {
-            background: #f39c12;
-            color: white;
-        }
-
-        .btn-hapus {
-            background: #e74c3c;
-            color: white;
-        }
-
-        .btn-view {
-            background: #3498db;
-            color: white;
-        }
-
-        .btn-edit:hover, .btn-hapus:hover, .btn-view:hover {
-            opacity: 0.8;
-            transform: translateY(-2px);
         }
 
         .empty-state {
@@ -406,10 +352,6 @@ $statistik = [
             .filter-group {
                 width: 100%;
             }
-            
-            .action-buttons {
-                flex-direction: column;
-            }
         }
     </style>
 </head>
@@ -459,7 +401,6 @@ $statistik = [
         <div class="table-container">
             <div class="section-title">
                 <h3>📋 Semua Jadwal Kajian</h3>
-                <a href="kelola_kajian.php" class="btn-tambah">+ Tambah Kajian Baru</a>
             </div>
 
             <!-- Filter Section -->
@@ -489,7 +430,6 @@ $statistik = [
                             <th>Waktu</th>
                             <th>Tempat</th>
                             <th>Status</th>
-                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -502,6 +442,9 @@ $statistik = [
                             <td><?php echo $no++; ?></td>
                             <td>
                                 <strong><?php echo htmlspecialchars($row['judul']); ?></strong>
+                                <div style="font-size: 0.85rem; color: #7f8c8d; margin-top: 5px;">
+                                    Oleh: <?php echo htmlspecialchars($row['nama_pembuat']); ?>
+                                </div>
                             </td>
                             <td><?php echo htmlspecialchars($row['pemateri']); ?></td>
                             <td><?php echo date('d/m/Y', strtotime($row['tanggal'])); ?></td>
@@ -514,15 +457,6 @@ $statistik = [
                                     <span class="badge badge-selesai">Selesai</span>
                                 <?php endif; ?>
                             </td>
-                            <td>
-                                <div class="action-buttons">
-                                    <a href="detail_kajian.php?id=<?php echo $row['id']; ?>" class="btn-view" title="Lihat Detail">👁️ Detail</a>
-                                    <?php if ($row['created_by'] == $pembina_id): ?>
-                                        <a href="kelola_kajian.php?edit=<?php echo $row['id']; ?>" class="btn-edit" title="Edit">✏️ Edit</a>
-                                        <a href="kelola_kajian.php?hapus=<?php echo $row['id']; ?>" class="btn-hapus" title="Hapus" onclick="return confirm('Yakin ingin menghapus kajian ini?')">🗑️ Hapus</a>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
                         </tr>
                         <?php endwhile; ?>
                     </tbody>
@@ -530,8 +464,6 @@ $statistik = [
             <?php else: ?>
                 <div class="empty-state">
                     <p>✨ Belum ada jadwal kajian</p>
-                    <p>Mulai dengan membuat kajian baru</p>
-                    <a href="kelola_kajian.php" class="btn-tambah" style="display: inline-block;">+ Buat Kajian Baru</a>
                 </div>
             <?php endif; ?>
         </div>
@@ -541,9 +473,9 @@ $statistik = [
             <strong>📌 Informasi:</strong>
             <ul style="margin-top: 10px; margin-left: 20px;">
                 <li>Halaman ini menampilkan <strong>SEMUA kajian</strong> dari semua pembina</li>
-                <li>Anda hanya dapat mengedit/menghapus kajian yang Anda buat sendiri (akan muncul tombol Edit dan Hapus)</li>
                 <li>Gunakan filter untuk memisahkan kajian yang akan datang dan yang sudah selesai</li>
                 <li>Gunakan kotak pencarian untuk mencari judul, pemateri, atau tempat</li>
+                <li>Untuk mengelola kajian, silakan kunjungi menu <strong>Kelola Kajian</strong></li>
             </ul>
         </div>
     </div>
