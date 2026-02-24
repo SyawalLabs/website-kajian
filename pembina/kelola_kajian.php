@@ -39,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update'])) {
     $deskripsi = mysqli_real_escape_string($conn, $_POST['deskripsi']);
     $link_video = mysqli_real_escape_string($conn, $_POST['link_video']);
     
-    // Hapus kondisi created_by - SEMUA BISA DIEDIT
     $query = "UPDATE kajian SET 
               judul = '$judul', 
               pemateri = '$pemateri', 
@@ -61,7 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update'])) {
 if (isset($_GET['hapus'])) {
     $id = $_GET['hapus'];
     
-    // Hapus kondisi created_by - SEMUA BISA DIHAPUS
     $query = "DELETE FROM kajian WHERE id = $id";
     
     if (mysqli_query($conn, $query)) {
@@ -75,7 +73,6 @@ if (isset($_GET['hapus'])) {
 $edit_data = null;
 if (isset($_GET['edit'])) {
     $id = $_GET['edit'];
-    // Hapus kondisi created_by - SEMUA BISA DIAMBIL
     $query = "SELECT * FROM kajian WHERE id = $id";
     $result = mysqli_query($conn, $query);
     if (mysqli_num_rows($result) > 0) {
@@ -85,7 +82,7 @@ if (isset($_GET['edit'])) {
     }
 }
 
-// AMBIL SEMUA KAJIAN (tanpa filter berdasarkan pemateri)
+// AMBIL SEMUA KAJIAN
 $query = "SELECT k.*, u.nama_lengkap as pembuat 
           FROM kajian k 
           LEFT JOIN users u ON k.created_by = u.id 
@@ -93,8 +90,24 @@ $query = "SELECT k.*, u.nama_lengkap as pembuat
 $result = mysqli_query($conn, $query);
 $total_kajian = mysqli_num_rows($result);
 
-// Nama pembina untuk ditampilkan di stats card
-$display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : 'Pembina';
+// Hitung statistik tambahan
+$tanggal_sekarang = date('Y-m-d');
+$akan_datang = 0;
+$sudah_lewat = 0;
+
+// Reset pointer untuk menghitung
+mysqli_data_seek($result, 0);
+while ($row = mysqli_fetch_assoc($result)) {
+    if ($row['tanggal'] >= $tanggal_sekarang) {
+        $akan_datang++;
+    } else {
+        $sudah_lewat++;
+    }
+}
+// Reset pointer lagi untuk ditampilkan
+mysqli_data_seek($result, 0);
+
+$nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : 'Pembina';
 ?>
 
 <!DOCTYPE html>
@@ -102,71 +115,11 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola Kajian - Pembina</title>
+    <title>Kelola Kajian - Pembina | MAKN ENDE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f4f6f9;
-        }
-
-        .navbar {
-            background: #343a40;
-            color: white;
-            padding: 15px 0;
-        }
-        .navbar .container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .navbar .navbar-brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .navbar .navbar-logo i {
-            font-size: 2rem;
-            color: #fff;
-        }
-        .navbar h1 {
-            font-size: 1.5rem;
-            margin: 0;
-        }
-        .navbar h1 span {
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-        .navbar-menu {
-            display: flex;
-            gap: 20px;
-        }
-        .navbar-menu a {
-            color: white;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            padding: 8px 12px;
-            border-radius: 5px;
-            transition: background 0.3s;
-        }
-        .navbar-menu a:hover, .navbar-menu a.active {
-            background: #007bff;
-        }
-        .main-container {
-            max-width: 1400px;
-            margin: 30px auto;
-            padding: 0 20px;
-        }
-
+        /* Custom styles for kelola kajian */
         .page-header {
             display: flex;
             justify-content: space-between;
@@ -178,153 +131,122 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
 
         .page-header h2 {
             font-size: 2rem;
-            color: #1e3c72;
+            color: var(--primary-color);
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .page-header h2 i {
-            color: #2a5298;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.95rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .btn-primary {
-            background: #1e3c72;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #2a5298;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(30,60,114,0.3);
-        }
-
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #218838;
-            transform: translateY(-2px);
-        }
-
-        .btn-warning {
-            background: #ffc107;
-            color: #1e3c72;
-        }
-
-        .btn-warning:hover {
-            background: #e0a800;
-            transform: translateY(-2px);
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-            transform: translateY(-2px);
-        }
-
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 0.85rem;
-        }
-
-        .alert {
-            padding: 15px 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 25px;
-            border-radius: 15px;
+        .stats-grid-small {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
             margin-bottom: 30px;
-            display: inline-block;
-            min-width: 250px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
-        .stats-card h3 {
-            font-size: 1rem;
-            opacity: 0.9;
-            margin-bottom: 10px;
+        .stat-card-small {
+            background: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: transform 0.3s;
         }
 
-        .stats-card .number {
-            font-size: 2.5rem;
+        .stat-card-small:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-icon-small {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .stat-content-small h4 {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .stat-content-small .number {
+            font-size: 1.8rem;
             font-weight: bold;
+            color: var(--primary-color);
         }
 
         .kajian-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
+            gap: 25px;
+            margin-top: 30px;
         }
 
         .kajian-card {
             background: white;
-            border-radius: 15px;
+            border-radius: var(--border-radius);
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: var(--box-shadow);
             transition: all 0.3s;
             border: 1px solid #e0e0e0;
+            position: relative;
         }
 
         .kajian-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .kajian-status {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1;
+        }
+
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-badge.akan-datang {
+            background: #f39c12;
+            color: white;
+        }
+
+        .status-badge.selesai {
+            background: #95a5a6;
+            color: white;
         }
 
         .kajian-header {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
-            padding: 15px 20px;
+            padding: 20px;
+            position: relative;
         }
 
         .kajian-header h3 {
-            font-size: 1.2rem;
-            margin-bottom: 5px;
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+            padding-right: 100px;
         }
 
         .kajian-header .pemateri {
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             opacity: 0.9;
             display: flex;
             align-items: center;
@@ -338,32 +260,61 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
         .kajian-info {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             margin-bottom: 15px;
         }
 
         .info-item {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             color: #555;
             font-size: 0.95rem;
         }
 
         .info-item i {
             width: 20px;
-            color: #1e3c72;
+            color: var(--primary-color);
+            font-size: 1.1rem;
         }
 
         .kajian-deskripsi {
             background: #f8f9fa;
             padding: 15px;
-            border-radius: 8px;
+            border-radius: var(--border-radius);
             margin: 15px 0;
             font-size: 0.95rem;
             color: #666;
             max-height: 100px;
             overflow-y: auto;
+            border-left: 3px solid var(--primary-color);
+        }
+
+        .kajian-meta {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .meta-tag {
+            background: #e9ecef;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            color: #495057;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .meta-tag i {
+            font-size: 0.8rem;
+        }
+
+        .meta-tag.saya {
+            background: #d4edda;
+            color: #155724;
         }
 
         .kajian-footer {
@@ -375,29 +326,81 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
             gap: 10px;
         }
 
+        .btn-icon {
+            padding: 8px 15px;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .btn-edit {
+            background: var(--warning-color);
+            color: var(--primary-color);
+        }
+
+        .btn-edit:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+
+        .btn-delete {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
         .empty-state {
             text-align: center;
-            padding: 60px 20px;
+            padding: 80px 20px;
             background: white;
-            border-radius: 15px;
+            border-radius: var(--border-radius);
             grid-column: 1/-1;
+            box-shadow: var(--box-shadow);
         }
 
         .empty-state i {
-            font-size: 4rem;
+            font-size: 5rem;
             color: #ccc;
             margin-bottom: 20px;
         }
 
         .empty-state h3 {
-            font-size: 1.5rem;
-            color: #1e3c72;
+            font-size: 1.8rem;
+            color: var(--primary-color);
             margin-bottom: 10px;
         }
 
         .empty-state p {
             color: #666;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            font-size: 1.1rem;
+        }
+
+        .link-video {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 0.9rem;
+            padding: 5px 10px;
+            background: #e3f2fd;
+            border-radius: 15px;
+        }
+
+        .link-video:hover {
+            background: #bbdefb;
         }
 
         .modal {
@@ -410,30 +413,43 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
             background: rgba(0,0,0,0.5);
             z-index: 1000;
             overflow-y: auto;
+            backdrop-filter: blur(5px);
         }
 
         .modal-content {
             background: white;
-            margin: 50px auto;
+            margin: 30px auto;
             max-width: 600px;
             width: 90%;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            border-radius: var(--border-radius);
+            box-shadow: 0 5px 30px rgba(0,0,0,0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         .modal-header {
-            padding: 20px;
+            padding: 20px 25px;
             border-bottom: 1px solid #dee2e6;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
-            border-radius: 15px 15px 0 0;
+            border-radius: var(--border-radius) var(--border-radius) 0 0;
         }
 
         .modal-header h3 {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -442,10 +458,11 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
         .modal-header .close {
             background: none;
             border: none;
-            font-size: 1.5rem;
+            font-size: 2rem;
             cursor: pointer;
             color: white;
             opacity: 0.8;
+            transition: opacity 0.3s;
         }
 
         .modal-header .close:hover {
@@ -453,15 +470,17 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
         }
 
         .modal-body {
-            padding: 20px;
+            padding: 25px;
         }
 
         .modal-footer {
-            padding: 20px;
+            padding: 20px 25px;
             border-top: 1px solid #dee2e6;
             display: flex;
             justify-content: flex-end;
-            gap: 10px;
+            gap: 12px;
+            background: #f8f9fa;
+            border-radius: 0 0 var(--border-radius) var(--border-radius);
         }
 
         .form-group {
@@ -471,24 +490,32 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
         .form-group label {
             display: block;
             margin-bottom: 8px;
-            color: #1e3c72;
-            font-weight: 500;
+            color: var(--primary-color);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .form-group label i {
+            margin-right: 5px;
         }
 
         .form-group input,
-        .form-group textarea {
+        .form-group textarea,
+        .form-group select {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: var(--border-radius);
             font-size: 1rem;
             transition: all 0.3s;
+            font-family: inherit;
         }
 
         .form-group input:focus,
-        .form-group textarea:focus {
+        .form-group textarea:focus,
+        .form-group select:focus {
             outline: none;
-            border-color: #1e3c72;
+            border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(30,60,114,0.1);
         }
 
@@ -498,34 +525,10 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
             gap: 15px;
         }
 
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: #e9ecef;
-            color: #495057;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-
-        .badge-success {
-            background: #28a745;
-            color: white;
-        }
-
-        .link-video {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            color: #1e3c72;
-            text-decoration: none;
-            font-size: 0.9rem;
-        }
-
-        .link-video:hover {
-            text-decoration: underline;
+        .required-field::after {
+            content: " *";
+            color: var(--danger-color);
+            font-weight: bold;
         }
 
         @media (max-width: 768px) {
@@ -538,19 +541,22 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
                 align-items: flex-start;
             }
             
-            .navbar-menu {
-                flex-direction: column;
-                gap: 10px;
+            .kajian-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid-small {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-   <nav class="navbar">
+    <nav class="navbar">
         <div class="container">
             <div class="navbar-brand">
                 <div class="navbar-logo">
-                    <i class="fas fa-user-shield"></i>
+                    <i class="fas fa-chalkboard-teacher"></i>
                 </div>
                 <div>
                     <h1>MAKN ENDE <span>Panel Pembina</span></h1>
@@ -559,13 +565,21 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
             <div class="navbar-menu">
                 <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
                 <a href="kelola_kajian.php" class="active"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
-                <a href="kelola_santri.php"><i class="fas fa-users-cog"></i> Kelola Santri</a>
+                <a href="kelola_santri.php"><i class="fas fa-users"></i> Kelola Santri</a>
                 <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </div>
         </div>
     </nav>
 
-    <div class="main-container">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb">
+            <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <span class="separator"><i class="fas fa-chevron-right"></i></span>
+            <span>Kelola Kajian</span>
+        </div>
+
+        <!-- Page Header -->
         <div class="page-header">
             <h2>
                 <i class="fas fa-calendar-alt"></i>
@@ -576,6 +590,7 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
             </button>
         </div>
 
+        <!-- Alert Messages -->
         <?php if ($success_message): ?>
             <div class="alert alert-success">
                 <i class="fas fa-check-circle"></i>
@@ -590,27 +605,73 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
             </div>
         <?php endif; ?>
 
-        <!-- Stats Card -->
-        <div class="stats-card">
-            <h3><i class="fas fa-calendar-check"></i> Total Semua Kajian</h3>
-            <div class="number"><?php echo $total_kajian; ?></div>
-            <div style="margin-top: 10px; font-size: 0.9rem; opacity: 0.9;">
-                <i class="fas fa-user"></i> <?php echo htmlspecialchars($display_nama_pembina); ?>
+        <!-- Statistics Cards -->
+        <div class="stats-grid-small">
+            <div class="stat-card-small">
+                <div class="stat-icon-small">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <div class="stat-content-small">
+                    <h4>Total Kajian</h4>
+                    <div class="number"><?php echo $total_kajian; ?></div>
+                </div>
+            </div>
+            
+            <div class="stat-card-small">
+                <div class="stat-icon-small">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content-small">
+                    <h4>Akan Datang</h4>
+                    <div class="number"><?php echo $akan_datang; ?></div>
+                </div>
+            </div>
+            
+            <div class="stat-card-small">
+                <div class="stat-icon-small">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content-small">
+                    <h4>Sudah Selesai</h4>
+                    <div class="number"><?php echo $sudah_lewat; ?></div>
+                </div>
+            </div>
+            
+            <div class="stat-card-small">
+                <div class="stat-icon-small">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="stat-content-small">
+                    <h4>Pembina</h4>
+                    <div class="number" style="font-size: 1.2rem;"><?php echo htmlspecialchars($nama_pembina); ?></div>
+                </div>
             </div>
         </div>
 
         <!-- Grid Kajian -->
         <div class="kajian-grid">
             <?php if (mysqli_num_rows($result) > 0): ?>
-                <?php while ($row = mysqli_fetch_assoc($result)): ?>
+                <?php while ($row = mysqli_fetch_assoc($result)): 
+                    $status = ($row['tanggal'] >= $tanggal_sekarang) ? 'akan-datang' : 'selesai';
+                    $status_text = ($status == 'akan-datang') ? 'Akan Datang' : 'Selesai';
+                    $status_icon = ($status == 'akan-datang') ? 'fa-clock' : 'fa-check-circle';
+                ?>
                     <div class="kajian-card">
+                        <div class="kajian-status">
+                            <span class="status-badge <?php echo $status; ?>">
+                                <i class="fas <?php echo $status_icon; ?>"></i>
+                                <?php echo $status_text; ?>
+                            </span>
+                        </div>
+                        
                         <div class="kajian-header">
                             <h3><?php echo htmlspecialchars($row['judul']); ?></h3>
                             <div class="pemateri">
-                                <i class="fas fa-user"></i>
+                                <i class="fas fa-microphone-alt"></i>
                                 <?php echo htmlspecialchars($row['pemateri']); ?>
                             </div>
                         </div>
+                        
                         <div class="kajian-body">
                             <div class="kajian-info">
                                 <div class="info-item">
@@ -629,7 +690,7 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
                                 <div class="info-item">
                                     <i class="fas fa-video"></i>
                                     <a href="<?php echo htmlspecialchars($row['link_video']); ?>" target="_blank" class="link-video">
-                                        Link Video <i class="fas fa-external-link-alt"></i>
+                                        <i class="fas fa-play"></i> Tonton Rekaman
                                     </a>
                                 </div>
                                 <?php endif; ?>
@@ -637,33 +698,36 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
                             
                             <?php if (!empty($row['deskripsi'])): ?>
                                 <div class="kajian-deskripsi">
-                                    <i class="fas fa-align-left" style="margin-right: 5px; color: #1e3c72;"></i>
+                                    <i class="fas fa-align-left" style="margin-right: 8px; color: var(--primary-color);"></i>
                                     <?php echo nl2br(htmlspecialchars($row['deskripsi'])); ?>
                                 </div>
                             <?php endif; ?>
 
-                            <div style="margin-top: 10px;">
-                                <span class="badge">
-                                    <i class="fas fa-tag"></i> ID: <?php echo $row['id']; ?>
+                            <div class="kajian-meta">
+                                <span class="meta-tag">
+                                    <i class="fas fa-hashtag"></i> ID: <?php echo $row['id']; ?>
                                 </span>
-                                <span class="badge">
-                                    <i class="fas fa-clock"></i> Dibuat: <?php echo date('d/m/Y', strtotime($row['created_at'])); ?>
+                                <span class="meta-tag">
+                                    <i class="fas fa-calendar-plus"></i> <?php echo date('d/m/Y', strtotime($row['created_at'])); ?>
                                 </span>
-                                <span class="badge" style="background: #e3f2fd;">
+                                <span class="meta-tag <?php echo ($row['created_by'] == $_SESSION['user_id']) ? 'saya' : ''; ?>">
                                     <i class="fas fa-user"></i> 
-                                    Pembuat: <?php echo isset($row['pembuat']) ? htmlspecialchars($row['pembuat']) : 'Admin'; ?>
-                                    <?php if ($row['created_by'] == $_SESSION['user_id']): ?>
-                                        <span style="color: #28a745; font-weight: bold;"> (Saya)</span>
-                                    <?php endif; ?>
+                                    <?php 
+                                    if ($row['created_by'] == $_SESSION['user_id']) {
+                                        echo 'Saya';
+                                    } else {
+                                        echo htmlspecialchars($row['pembuat'] ?? 'Admin');
+                                    }
+                                    ?>
                                 </span>
                             </div>
                         </div>
+                        
                         <div class="kajian-footer">
-                            <!-- SEMUA KAJIAN BISA DIEDIT DAN DIHAPUS -->
-                            <a href="?edit=<?php echo $row['id']; ?>" class="btn btn-warning btn-sm">
+                            <a href="?edit=<?php echo $row['id']; ?>" class="btn-icon btn-edit">
                                 <i class="fas fa-edit"></i> Edit
                             </a>
-                            <a href="?hapus=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" 
+                            <a href="?hapus=<?php echo $row['id']; ?>" class="btn-icon btn-delete" 
                                onclick="return confirm('Yakin ingin menghapus kajian ini?')">
                                 <i class="fas fa-trash"></i> Hapus
                             </a>
@@ -674,7 +738,7 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
                 <div class="empty-state">
                     <i class="fas fa-calendar-times"></i>
                     <h3>Belum Ada Kajian</h3>
-                    <p>Belum ada kajian yang tersedia. Klik tombol "Tambah Kajian Baru" untuk memulai.</p>
+                    <p>Belum ada kajian yang tersedia. Mulai dengan membuat kajian baru.</p>
                     <button class="btn btn-primary" onclick="openTambahModal()">
                         <i class="fas fa-plus"></i> Buat Kajian Sekarang
                     </button>
@@ -693,52 +757,54 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
             <form method="POST">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label for="judul">Judul Kajian *</label>
-                        <input type="text" id="judul" name="judul" required 
+                        <label><i class="fas fa-heading"></i> <span class="required-field">Judul Kajian</span></label>
+                        <input type="text" name="judul" required 
                                placeholder="Contoh: Kajian Fiqh Bab Thaharah">
                     </div>
                     
                     <div class="form-group">
-                        <label for="pemateri">Pemateri *</label>
-                        <input type="text" id="pemateri" name="pemateri" required 
-                               placeholder="Contoh: Ustadz Rifai" 
+                        <label><i class="fas fa-microphone-alt"></i> <span class="required-field">Pemateri</span></label>
+                        <input type="text" name="pemateri" required 
+                               placeholder="Contoh: Ustadz Rifai"
                                value="<?php echo htmlspecialchars($nama_pembina); ?>">
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="tanggal">Tanggal *</label>
-                            <input type="date" id="tanggal" name="tanggal" required 
+                            <label><i class="fas fa-calendar"></i> <span class="required-field">Tanggal</span></label>
+                            <input type="date" name="tanggal" required 
                                    value="<?php echo date('Y-m-d'); ?>">
                         </div>
                         
                         <div class="form-group">
-                            <label for="waktu">Waktu *</label>
-                            <input type="time" id="waktu" name="waktu" required 
+                            <label><i class="fas fa-clock"></i> <span class="required-field">Waktu</span></label>
+                            <input type="time" name="waktu" required 
                                    value="<?php echo date('H:i'); ?>">
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label for="tempat">Tempat *</label>
-                        <input type="text" id="tempat" name="tempat" required 
+                        <label><i class="fas fa-map-marker-alt"></i> <span class="required-field">Tempat</span></label>
+                        <input type="text" name="tempat" required 
                                placeholder="Contoh: Ruang Kelas 2 / Aula">
                     </div>
                     
                     <div class="form-group">
-                        <label for="deskripsi">Deskripsi Kajian</label>
-                        <textarea id="deskripsi" name="deskripsi" rows="4" 
+                        <label><i class="fas fa-align-left"></i> Deskripsi Kajian</label>
+                        <textarea name="deskripsi" rows="4" 
                                   placeholder="Masukkan deskripsi kajian, materi yang akan dibahas, atau catatan penting..."></textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label for="link_video">Link Video (Opsional)</label>
-                        <input type="url" id="link_video" name="link_video" 
+                        <label><i class="fas fa-video"></i> Link Video (Opsional)</label>
+                        <input type="url" name="link_video" 
                                placeholder="Contoh: https://youtube.com/watch?v=...">
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-danger" onclick="closeModal('tambahModal')">Batal</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal('tambahModal')">
+                        <i class="fas fa-times"></i> Batal
+                    </button>
                     <button type="submit" name="simpan" class="btn btn-success">
                         <i class="fas fa-save"></i> Simpan Kajian
                     </button>
@@ -759,50 +825,53 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
                 <input type="hidden" name="id" value="<?php echo $edit_data['id']; ?>">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label for="edit_judul">Judul Kajian *</label>
-                        <input type="text" id="edit_judul" name="judul" required 
+                        <label><i class="fas fa-heading"></i> <span class="required-field">Judul Kajian</span></label>
+                        <input type="text" name="judul" required 
                                value="<?php echo htmlspecialchars($edit_data['judul']); ?>">
                     </div>
                     
                     <div class="form-group">
-                        <label for="edit_pemateri">Pemateri *</label>
-                        <input type="text" id="edit_pemateri" name="pemateri" required 
+                        <label><i class="fas fa-microphone-alt"></i> <span class="required-field">Pemateri</span></label>
+                        <input type="text" name="pemateri" required 
                                value="<?php echo htmlspecialchars($edit_data['pemateri']); ?>">
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="edit_tanggal">Tanggal *</label>
-                            <input type="date" id="edit_tanggal" name="tanggal" required 
+                            <label><i class="fas fa-calendar"></i> <span class="required-field">Tanggal</span></label>
+                            <input type="date" name="tanggal" required 
                                    value="<?php echo $edit_data['tanggal']; ?>">
                         </div>
                         
                         <div class="form-group">
-                            <label for="edit_waktu">Waktu *</label>
-                            <input type="time" id="edit_waktu" name="waktu" required 
+                            <label><i class="fas fa-clock"></i> <span class="required-field">Waktu</span></label>
+                            <input type="time" name="waktu" required 
                                    value="<?php echo $edit_data['waktu']; ?>">
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label for="edit_tempat">Tempat *</label>
-                        <input type="text" id="edit_tempat" name="tempat" required 
+                        <label><i class="fas fa-map-marker-alt"></i> <span class="required-field">Tempat</span></label>
+                        <input type="text" name="tempat" required 
                                value="<?php echo htmlspecialchars($edit_data['tempat']); ?>">
                     </div>
                     
                     <div class="form-group">
-                        <label for="edit_deskripsi">Deskripsi Kajian</label>
-                        <textarea id="edit_deskripsi" name="deskripsi" rows="4"><?php echo htmlspecialchars($edit_data['deskripsi']); ?></textarea>
+                        <label><i class="fas fa-align-left"></i> Deskripsi Kajian</label>
+                        <textarea name="deskripsi" rows="4"><?php echo htmlspecialchars($edit_data['deskripsi']); ?></textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label for="edit_link_video">Link Video (Opsional)</label>
-                        <input type="url" id="edit_link_video" name="link_video" 
-                               value="<?php echo htmlspecialchars($edit_data['link_video'] ?? ''); ?>">
+                        <label><i class="fas fa-video"></i> Link Video (Opsional)</label>
+                        <input type="url" name="link_video" 
+                               value="<?php echo htmlspecialchars($edit_data['link_video'] ?? ''); ?>"
+                               placeholder="Contoh: https://youtube.com/watch?v=...">
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <a href="kelola_kajian.php" class="btn btn-danger">Batal</a>
+                    <a href="kelola_kajian.php" class="btn btn-danger">
+                        <i class="fas fa-times"></i> Batal
+                    </a>
                     <button type="submit" name="update" class="btn btn-success">
                         <i class="fas fa-save"></i> Update Kajian
                     </button>
@@ -815,10 +884,12 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
     <script>
         function openTambahModal() {
             document.getElementById('tambahModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
         }
 
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
+            document.body.style.overflow = 'auto';
         }
 
         // Tutup modal jika klik di luar modal
@@ -827,12 +898,27 @@ $display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengk
             const editModal = document.getElementById('editModal');
             
             if (event.target == tambahModal) {
-                tambahModal.style.display = 'none';
+                closeModal('tambahModal');
             }
             if (event.target == editModal) {
                 window.location.href = 'kelola_kajian.php';
             }
         }
+
+        // Close modal with ESC key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const tambahModal = document.getElementById('tambahModal');
+                const editModal = document.getElementById('editModal');
+                
+                if (tambahModal.style.display === 'block') {
+                    closeModal('tambahModal');
+                }
+                if (editModal && editModal.style.display === 'block') {
+                    window.location.href = 'kelola_kajian.php';
+                }
+            }
+        });
     </script>
 </body>
 </html>

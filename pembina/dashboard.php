@@ -55,303 +55,130 @@ $statistik = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Pembina - Semua Jadwal Kajian</title>
+    <title>Dashboard Pembina - MAKN ENDE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f4f6f9;
-        }
-
-        .navbar {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        /* Custom styles untuk pembina */
+        .welcome-card {
+            background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
+            padding: 40px;
+            border-radius: var(--border-radius);
+            margin-bottom: 40px;
             color: white;
-            padding: 1rem 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-
-        .navbar .container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 20px;
-        }
-
-        .navbar-brand h1 {
-            font-size: 1.8rem;
-            margin-bottom: 5px;
-        }
-
-        .navbar-brand span {
-            font-size: 0.9rem;
-            opacity: 0.9;
-        }
-
-        .navbar-menu {
-            display: flex;
-            gap: 20px;
-        }
-
-        .navbar-menu a {
-            color: white;
-            text-decoration: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            transition: all 0.3s;
-        }
-
-        .navbar-menu a:hover, .navbar-menu a.active {
-            background: rgba(255,255,255,0.2);
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .welcome-section {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-
-        .welcome-section h2 {
-            color: #2c3e50;
-            margin-bottom: 10px;
-        }
-
-        .welcome-section p {
-            color: #7f8c8d;
-            font-size: 1.1rem;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            transition: transform 0.3s;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .stat-card.primary { border-top: 4px solid #3498db; }
-        .stat-card.success { border-top: 4px solid #2ecc71; }
-        .stat-card.info { border-top: 4px solid #f39c12; }
-        .stat-card.warning { border-top: 4px solid #e74c3c; }
-
-        .stat-card h3 {
-            color: #7f8c8d;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-        }
-
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            color: #95a5a6;
-            font-size: 0.9rem;
-        }
-
+        
         .filter-section {
             background: white;
             padding: 20px;
-            border-radius: 10px;
+            border-radius: var(--border-radius);
             margin-bottom: 20px;
             display: flex;
             gap: 15px;
             flex-wrap: wrap;
             align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            box-shadow: var(--box-shadow);
         }
-
+        
         .filter-group {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
             flex: 1;
         }
-
+        
         .filter-btn {
             padding: 10px 20px;
             border: none;
             background: #ecf0f1;
             color: #7f8c8d;
-            border-radius: 5px;
+            border-radius: var(--border-radius);
             cursor: pointer;
             transition: all 0.3s;
             font-weight: 500;
         }
-
+        
         .filter-btn:hover {
             background: #bdc3c7;
         }
-
+        
         .filter-btn.active {
-            background: #3498db;
+            background: var(--primary-color);
             color: white;
         }
-
+        
         .search-box {
             flex: 1;
             padding: 10px 15px;
             border: 1px solid #ddd;
-            border-radius: 5px;
+            border-radius: var(--border-radius);
             font-size: 1rem;
             min-width: 250px;
         }
-
+        
         .search-box:focus {
             outline: none;
-            border-color: #3498db;
+            border-color: var(--primary-color);
         }
-
-        .table-container {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            overflow-x: auto;
+        
+        .filter-indicator {
+            background: #e8f8f5;
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-
-        .section-title {
-            margin-bottom: 20px;
+        
+        .reset-filter {
+            color: #e74c3c;
+            cursor: pointer;
+            text-decoration: underline;
         }
-
-        .section-title h3 {
-            color: #2c3e50;
-            font-size: 1.3rem;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th {
-            background: #f8f9fa;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            color: #2c3e50;
-            border-bottom: 2px solid #dee2e6;
-            position: sticky;
-            top: 0;
-        }
-
-        td {
-            padding: 15px;
-            border-bottom: 1px solid #dee2e6;
-            color: #34495e;
-        }
-
-        tr:hover {
-            background: #f8f9fa;
-        }
-
-        .badge {
+        
+        .badge-akan-datang {
+            background: #f39c12;
+            color: white;
             padding: 5px 10px;
             border-radius: 20px;
             font-size: 0.85rem;
             font-weight: 500;
             display: inline-block;
         }
-
-        .badge-akan-datang {
-            background: #f39c12;
-            color: white;
-        }
-
+        
         .badge-selesai {
             background: #95a5a6;
             color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: inline-block;
         }
-
-        .empty-state {
-            text-align: center;
-            padding: 50px;
+        
+        .table td .keterangan {
+            font-size: 0.85rem;
             color: #7f8c8d;
+            margin-top: 5px;
         }
-
-        .empty-state p {
-            margin-bottom: 20px;
-            font-size: 1.1rem;
-        }
-
-        .alert-info {
+        
+        .info-card {
             background: #d1ecf1;
             color: #0c5460;
             padding: 20px;
-            border-radius: 8px;
+            border-radius: var(--border-radius);
             margin: 20px 0;
             border: 1px solid #bee5eb;
         }
-
-        .filter-indicator {
-            background: #e8f8f5;
-            padding: 10px 15px;
-            border-radius: 5px;
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        
+        .info-card i {
+            margin-right: 10px;
         }
-
-        .reset-filter {
-            color: #e74c3c;
-            cursor: pointer;
-            text-decoration: underline;
-        }
-
-        @media (max-width: 768px) {
-            .navbar .container {
-                flex-direction: column;
-                gap: 15px;
-            }
-            
-            .navbar-menu {
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .filter-section {
-                flex-direction: column;
-            }
-            
-            .filter-group {
-                width: 100%;
-            }
+        
+        .info-card ul {
+            margin-top: 10px;
+            margin-left: 30px;
         }
     </style>
 </head>
@@ -359,124 +186,189 @@ $statistik = [
     <nav class="navbar">
         <div class="container">
             <div class="navbar-brand">
-                <h1>MAKN ENDE</h1>
-                <span>Panel Pembina - <?php echo htmlspecialchars($nama_pembina); ?></span>
+                <div class="navbar-logo">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                </div>
+                <div>
+                    <h1>MAKN ENDE <span>Panel Pembina</span></h1>
+                </div>
             </div>
             <div class="navbar-menu">
-                <a href="../pembina/dashboard.php" class="active">Dashboard</a>
-                <a href="../pembina/kelola_kajian.php">Kelola Kajian</a>
-                <a href="../pembina/kelola_santri.php">Kelola Santri</a>
-                <a href="../logout.php">Logout</a>
+                <a href="dashboard.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="kelola_kajian.php"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
+                <a href="kelola_santri.php"><i class="fas fa-users"></i> Kelola Santri</a>
+                <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </div>
         </div>
     </nav>
 
     <div class="container">
-        <!-- Welcome Section -->
-        <div class="welcome-section">
-            <h2>Dashboard Pembina</h2>
-            <p>Selamat datang, <strong><?php echo htmlspecialchars($nama_pembina); ?></strong>! Berikut adalah semua jadwal kajian yang tersedia.</p>
+        <!-- Breadcrumb -->
+        <div class="breadcrumb">
+            <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <span class="separator"><i class="fas fa-chevron-right"></i></span>
+            <span>Pembina</span>
+        </div>
+
+        <!-- Welcome Card -->
+        <div class="welcome-card">
+            <div style="display: flex; align-items: center; gap: 30px; flex-wrap: wrap;">
+                <div style="flex: 1;">
+                    <h2 style="font-size: 2rem; margin-bottom: 10px; font-family: 'Amiri', serif;">
+                        <i class="fas fa-hand-sparkles"></i> 
+                        Assalamu'alaikum, <?php echo htmlspecialchars($nama_pembina); ?>
+                    </h2>
+                    <p style="opacity: 0.9; font-size: 1.1rem;">Selamat datang di panel pembina MAKN ENDE. Kelola jadwal kajian dengan mudah.</p>
+                </div>
+                <div style="text-align: center;">
+                    <div style="background: rgba(255,255,255,0.2); padding: 20px; border-radius: 50%; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-book-open" style="font-size: 40px;"></i>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Statistics -->
+        <h2 class="dashboard-title">
+            <i class="fas fa-chart-pie"></i> 
+            Statistik Kajian
+        </h2>
+        
         <div class="stats-grid">
-            <div class="stat-card primary">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
                 <h3>Total Semua Kajian</h3>
-                <div class="stat-number"><?php echo $statistik['total_semua']; ?></div>
-                <div class="stat-label">Seluruh jadwal kajian</div>
+                <p class="stat-number"><?php echo $statistik['total_semua']; ?></p>
+                <small style="color: #666;">Seluruh jadwal</small>
             </div>
-            <div class="stat-card info">
+            
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
                 <h3>Akan Datang</h3>
-                <div class="stat-number"><?php echo $statistik['akan_datang']; ?></div>
-                <div class="stat-label">Kajian mendatang</div>
+                <p class="stat-number"><?php echo $statistik['akan_datang']; ?></p>
+                <small style="color: #666;">Kajian mendatang</small>
             </div>
-            <div class="stat-card warning">
+            
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
                 <h3>Sudah Lewat</h3>
-                <div class="stat-number"><?php echo $statistik['sudah_lewat']; ?></div>
-                <div class="stat-label">Kajian yang sudah selesai</div>
+                <p class="stat-number"><?php echo $statistik['sudah_lewat']; ?></p>
+                <small style="color: #666;">Kajian selesai</small>
             </div>
         </div>
 
         <!-- Main Content -->
-        <div class="table-container">
-            <div class="section-title">
-                <h3>📋 Semua Jadwal Kajian</h3>
+        <div style="margin-top: 50px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1.5rem; color: var(--primary-color);">
+                    <i class="fas fa-calendar-alt"></i> 
+                    Semua Jadwal Kajian
+                </h3>
             </div>
 
             <!-- Filter Section -->
             <div class="filter-section">
                 <div class="filter-group">
-                    <button class="filter-btn active" onclick="filterTable('semua')">📋 Semua Kajian</button>
-                    <button class="filter-btn" onclick="filterTable('akan_datang')">📅 Akan Datang</button>
-                    <button class="filter-btn" onclick="filterTable('selesai')">✅ Sudah Selesai</button>
+                    <button class="filter-btn active" onclick="filterTable('semua')">
+                        <i class="fas fa-list"></i> Semua Kajian
+                    </button>
+                    <button class="filter-btn" onclick="filterTable('akan_datang')">
+                        <i class="fas fa-clock"></i> Akan Datang
+                    </button>
+                    <button class="filter-btn" onclick="filterTable('selesai')">
+                        <i class="fas fa-check-circle"></i> Sudah Selesai
+                    </button>
                 </div>
-                <input type="text" class="search-box" id="searchInput" placeholder="🔍 Cari judul, pemateri, atau tempat..." onkeyup="searchTable()">
+                <input type="text" class="search-box" id="searchInput" 
+                       placeholder="🔍 Cari judul, pemateri, atau tempat..." onkeyup="searchTable()">
             </div>
 
             <!-- Active Filter Indicator -->
             <div id="filterIndicator" class="filter-indicator" style="display: none;">
-                <span>🔍 Menampilkan: <span id="activeFilterText">Semua Kajian</span></span>
-                <span class="reset-filter" onclick="resetFilter()">✖ Reset Filter</span>
+                <span>
+                    <i class="fas fa-filter"></i> 
+                    Menampilkan: <span id="activeFilterText">Semua Kajian</span>
+                </span>
+                <span class="reset-filter" onclick="resetFilter()">
+                    <i class="fas fa-times"></i> Reset Filter
+                </span>
             </div>
 
-            <?php if ($total_semua_kajian > 0): ?>
-                <table id="kajianTable">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>Judul Kajian</th>
-                            <th>Pemateri</th>
-                            <th>Tanggal</th>
-                            <th>Waktu</th>
-                            <th>Tempat</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php 
-                        $no = 1;
-                        while ($row = mysqli_fetch_assoc($semua_kajian)): 
-                            $status = ($row['tanggal'] >= date('Y-m-d')) ? 'akan_datang' : 'selesai';
-                        ?>
-                        <tr data-status="<?php echo $status; ?>">
-                            <td><?php echo $no++; ?></td>
-                            <td>
-                                <strong><?php echo htmlspecialchars($row['judul']); ?></strong>
-                                <div style="font-size: 0.85rem; color: #7f8c8d; margin-top: 5px;">
-                                    Oleh: <?php echo htmlspecialchars($row['nama_pembuat']); ?>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($row['pemateri']); ?></td>
-                            <td><?php echo date('d/m/Y', strtotime($row['tanggal'])); ?></td>
-                            <td><?php echo htmlspecialchars($row['waktu']); ?></td>
-                            <td><?php echo htmlspecialchars($row['tempat']); ?></td>
-                            <td>
-                                <?php if ($status == 'akan_datang'): ?>
-                                    <span class="badge badge-akan-datang">Akan Datang</span>
-                                <?php else: ?>
-                                    <span class="badge badge-selesai">Selesai</span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    </tbody>
-                </table>
-            <?php else: ?>
-                <div class="empty-state">
-                    <p>✨ Belum ada jadwal kajian</p>
-                </div>
-            <?php endif; ?>
-        </div>
+            <!-- Table -->
+            <div class="table-container">
+                <?php if ($total_semua_kajian > 0): ?>
+                    <table class="table" id="kajianTable">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Judul Kajian</th>
+                                <th>Pemateri</th>
+                                <th>Tanggal</th>
+                                <th>Waktu</th>
+                                <th>Tempat</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $no = 1;
+                            while ($row = mysqli_fetch_assoc($semua_kajian)): 
+                                $status = ($row['tanggal'] >= date('Y-m-d')) ? 'akan_datang' : 'selesai';
+                            ?>
+                            <tr data-status="<?php echo $status; ?>">
+                                <td><?php echo $no++; ?></td>
+                                <td>
+                                    <strong><?php echo htmlspecialchars($row['judul']); ?></strong>
+                                    <div class="keterangan">
+                                        <i class="fas fa-user"></i> <?php echo htmlspecialchars($row['nama_pembuat']); ?>
+                                    </div>
+                                </td>
+                                <td><?php echo htmlspecialchars($row['pemateri']); ?></td>
+                                <td><?php echo date('d/m/Y', strtotime($row['tanggal'])); ?></td>
+                                <td><?php echo htmlspecialchars($row['waktu']); ?> WIB</td>
+                                <td><?php echo htmlspecialchars($row['tempat']); ?></td>
+                                <td>
+                                    <?php if ($status == 'akan_datang'): ?>
+                                        <span class="badge badge-akan-datang">
+                                            <i class="fas fa-clock"></i> Akan Datang
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="badge badge-selesai">
+                                            <i class="fas fa-check"></i> Selesai
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div style="text-align: center; padding: 60px;">
+                        <i class="fas fa-calendar-times" style="font-size: 48px; color: #ccc; margin-bottom: 20px;"></i>
+                        <p style="color: #7f8c8d; font-size: 1.1rem;">✨ Belum ada jadwal kajian</p>
+                        <a href="kelola_kajian.php?action=tambah" class="btn btn-primary" style="margin-top: 20px;">
+                            <i class="fas fa-plus"></i> Tambah Kajian Pertama
+                        </a>
+                    </div>
+                <?php endif; ?>
+            </div>
 
-        <!-- Informasi Tambahan -->
-        <div class="alert-info" style="margin-top: 20px;">
-            <strong>📌 Informasi:</strong>
-            <ul style="margin-top: 10px; margin-left: 20px;">
-                <li>Halaman ini menampilkan <strong>SEMUA kajian</strong> dari semua pembina</li>
-                <li>Gunakan filter untuk memisahkan kajian yang akan datang dan yang sudah selesai</li>
-                <li>Gunakan kotak pencarian untuk mencari judul, pemateri, atau tempat</li>
-                <li>Untuk mengelola kajian, silakan kunjungi menu <strong>Kelola Kajian</strong></li>
-            </ul>
+            <!-- Informasi Tambahan -->
+            <div class="info-card">
+                <strong><i class="fas fa-info-circle"></i> Informasi:</strong>
+                <ul>
+                    <li>Halaman ini menampilkan <strong>SEMUA kajian</strong> dari semua pembina</li>
+                    <li>Gunakan filter untuk memisahkan kajian yang akan datang dan yang sudah selesai</li>
+                    <li>Gunakan kotak pencarian untuk mencari judul, pemateri, atau tempat</li>
+                    <li>Untuk mengelola kajian, silakan kunjungi menu <strong>Kelola Kajian</strong></li>
+                </ul>
+            </div>
         </div>
     </div>
 
