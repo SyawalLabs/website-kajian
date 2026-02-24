@@ -87,14 +87,23 @@ if (isset($_GET['edit'])) {
     }
 }
 
-// Ambil semua kajian milik pembina yang login
-$created_by = $_SESSION['user_id'];
-$query = "SELECT * FROM kajian WHERE created_by = $created_by ORDER BY tanggal DESC, waktu DESC";
+// ==================== PERBAIKAN UTAMA ====================
+// Ambil nama pembina dari session
+$nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '';
+
+// AMBIL SEMUA KAJIAN DENGAN PEMATERI YANG SESUAI DENGAN NAMA PEMBINA LOGIN
+// Menggunakan LIKE untuk mencocokkan nama pembina dengan kolom pemateri
+$query = "SELECT k.*, u.nama_lengkap as pembuat 
+          FROM kajian k 
+          LEFT JOIN users u ON k.created_by = u.id 
+          WHERE k.pemateri LIKE '%$nama_pembina%' 
+          ORDER BY k.tanggal DESC, k.waktu DESC";
 $result = mysqli_query($conn, $query);
 $total_kajian = mysqli_num_rows($result);
 
-// Ambil nama pembina dari session
-$nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : 'Pembina';
+// Nama pembina untuk ditampilkan di stats card
+$display_nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : 'Pembina';
+// ==========================================================
 ?>
 
 <!DOCTYPE html>
@@ -127,21 +136,39 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
             justify-content: space-between;
             align-items: center;
         }
-        .navbar ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
+        .navbar .navbar-brand {
             display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .navbar ul li {
-            margin-left: 20px;
+        .navbar .navbar-logo i {
+            font-size: 2rem;
+            color: #fff;
         }
-        .navbar ul li a {
+        .navbar h1 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+        .navbar h1 span {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        .navbar-menu {
+            display: flex;
+            gap: 20px;
+        }
+        .navbar-menu a {
             color: white;
             text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 12px;
+            border-radius: 5px;
+            transition: background 0.3s;
         }
-        .navbar ul li a:hover {
-            color: #007bff;
+        .navbar-menu a:hover, .navbar-menu a.active {
+            background: #007bff;
         }
         .main-container {
             max-width: 1400px;
@@ -488,6 +515,13 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
             font-weight: 600;
             background: #e9ecef;
             color: #495057;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        .badge-success {
+            background: #28a745;
+            color: white;
         }
 
         .link-video {
@@ -512,6 +546,11 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
                 flex-direction: column;
                 align-items: flex-start;
             }
+            
+            .navbar-menu {
+                flex-direction: column;
+                gap: 10px;
+            }
         }
     </style>
 </head>
@@ -528,13 +567,12 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
             </div>
             <div class="navbar-menu">
                 <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-                <a href="kelola_kajian.php"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
-                <a href="kelola_santri.php" class="active"><i class="fas fa-users-cog"></i> Kelola Santri</a>
+                <a href="kelola_kajian.php" class="active"><i class="fas fa-calendar-alt"></i> Kelola Kajian</a>
+                <a href="kelola_santri.php"><i class="fas fa-users-cog"></i> Kelola Santri</a>
                 <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </div>
         </div>
     </nav>
-
 
     <div class="main-container">
         <div class="page-header">
@@ -566,7 +604,7 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
             <h3><i class="fas fa-calendar-check"></i> Total Kajian Saya</h3>
             <div class="number"><?php echo $total_kajian; ?></div>
             <div style="margin-top: 10px; font-size: 0.9rem; opacity: 0.9;">
-                <i class="fas fa-user"></i> <?php echo htmlspecialchars($nama_pembina); ?>
+                <i class="fas fa-user"></i> <?php echo htmlspecialchars($display_nama_pembina); ?>
             </div>
         </div>
 
@@ -620,16 +658,27 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
                                 <span class="badge">
                                     <i class="fas fa-clock"></i> Dibuat: <?php echo date('d/m/Y', strtotime($row['created_at'])); ?>
                                 </span>
+                                <span class="badge" style="background: #e3f2fd;">
+                                    <i class="fas fa-user"></i> 
+                                    Pembuat: <?php echo isset($row['pembuat']) ? htmlspecialchars($row['pembuat']) : 'Admin'; ?>
+                                    <?php if ($row['created_by'] == $_SESSION['user_id']): ?>
+                                        <span style="color: #28a745; font-weight: bold;"> (Saya)</span>
+                                    <?php endif; ?>
+                                </span>
                             </div>
                         </div>
                         <div class="kajian-footer">
-                            <a href="?edit=<?php echo $row['id']; ?>" class="btn btn-warning btn-sm">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            <a href="?hapus=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" 
-                               onclick="return confirm('Yakin ingin menghapus kajian ini?')">
-                                <i class="fas fa-trash"></i> Hapus
-                            </a>
+                            <?php if ($row['created_by'] == $_SESSION['user_id']): ?>
+                                <a href="?edit=<?php echo $row['id']; ?>" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                <a href="?hapus=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" 
+                                   onclick="return confirm('Yakin ingin menghapus kajian ini?')">
+                                    <i class="fas fa-trash"></i> Hapus
+                                </a>
+                            <?php else: ?>
+                                <span class="badge badge-success" style="padding: 8px;">Kajian dari Admin (Hanya Bisa Dilihat)</span>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endwhile; ?>
@@ -637,7 +686,7 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
                 <div class="empty-state">
                     <i class="fas fa-calendar-times"></i>
                     <h3>Belum Ada Kajian</h3>
-                    <p>Anda belum membuat kajian. Klik tombol "Tambah Kajian Baru" untuk memulai.</p>
+                    <p>Anda belum memiliki kajian. Klik tombol "Tambah Kajian Baru" untuk memulai.</p>
                     <button class="btn btn-primary" onclick="openTambahModal()">
                         <i class="fas fa-plus"></i> Buat Kajian Sekarang
                     </button>
@@ -664,7 +713,8 @@ $nama_pembina = isset($_SESSION['nama_lengkap']) ? $_SESSION['nama_lengkap'] : '
                     <div class="form-group">
                         <label for="pemateri">Pemateri *</label>
                         <input type="text" id="pemateri" name="pemateri" required 
-                               placeholder="Contoh: Ustadz Rifai">
+                               placeholder="Contoh: Ustadz Rifai" 
+                               value="<?php echo htmlspecialchars($nama_pembina); ?>">
                     </div>
                     
                     <div class="form-row">
